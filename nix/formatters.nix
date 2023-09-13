@@ -4,33 +4,18 @@
 { inputs, inputs', pkgs, system, lib, ... }:
 
 {
-  # cabal-fmt.enable = false;
-  # cabal-fmt.extraOptions = "";
+  cabal-fmt.enable = true;
+  cabal-fmt.extraOptions = "--no-tabular";
 
-  # stylish-haskell.enable = false;
-  # stylish-haskell.extraOptions = "";
 
-  # shellcheck.enable = false;
-  # shellcheck.extraOptions = "";
+  nixpkgs-fmt.enable = true;
 
-  # prettier.enable = false;
-  # prettier.extraOptions = "";
 
-  # editorconfig-checker.enable = false;
-  # editorconfig-checker.extraOptions = "";
+  shellcheck.enable = true;
 
-  # nixpkgs-fmt.enable = false;
-  # nixpkgs-fmt.extraOptions = "";
 
-  # png-optimization.enable = false;
-  # png-optimization.extraOptions = "";
+  fourmolu.enable = true;
 
-  # fourmolu.enable = false;
-  # fourmolu.extraOptions = "";
 
-  # purs-tidy.enable = false;
-  # purs-tidy.extraOptions = "";
-
-  # hlint.enable = false;
-  # hlint.extraOptions = "";
+  hlint.enable = true;
 }
