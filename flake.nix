@@ -2,7 +2,7 @@
 # https://www.github.com/input-output-hk/iogx#31-flakenix
 
 {
-  description = "Change the description field in your flake.nix";
+  description = "Plutus validators for Marlowe";
 
 
   inputs = {
@@ -13,7 +13,6 @@
   outputs = inputs: inputs.iogx.lib.mkFlake {
     inherit inputs;
     repoRoot = ./.;
-    # systems = ["x86_64-linux" "x86_64-darwin"];
   };
 
 
