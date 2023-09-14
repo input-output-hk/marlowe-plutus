@@ -1,29 +1,25 @@
------------------------------------------------------------------------------
+{-# LANGUAGE OverloadedStrings #-}
+
+-- | Run benchmarks for Marlowe validators.
 --
--- Module      :  $Headers
+-- Module      :  Main
 -- License     :  Apache 2.0
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
---
------------------------------------------------------------------------------
-{-# LANGUAGE OverloadedStrings #-}
-
--- | Run benchmarks for Marlowe validators.
 module Main (
   -- * Entry point
   main,
 ) where
 
 import Benchmark.Marlowe (tabulateResults)
-import Cardano.Binary (serialize')
-import Data.List (intercalate)
-import Plutus.V2.Ledger.Api (SerializedScript, ValidatorHash)
-
 import qualified Benchmark.Marlowe.RolePayout as RolePayout (benchmarks, validatorBytes, validatorHash)
 import qualified Benchmark.Marlowe.Semantics as Semantics (benchmarks, validatorBytes, validatorHash)
+import Cardano.Binary (serialize')
 import qualified Data.ByteString as BS (writeFile)
 import qualified Data.ByteString.Base16 as B16 (encode)
+import Data.List (intercalate)
+import Plutus.V2.Ledger.Api (SerializedScript, ValidatorHash)
 
 -- | Run the benchmarks and export information about the validators and the benchmarking results.
 main :: IO ()

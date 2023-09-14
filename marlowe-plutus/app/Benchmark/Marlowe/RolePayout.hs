@@ -1,16 +1,13 @@
------------------------------------------------------------------------------
---
--- Module      :  $Headers
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
---
------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Benchmarking support for Marlowe's role-payout validator.
+--
+-- Module      :  Benchmark.Marlowe.RolePayout
+-- License     :  Apache 2.0
+--
+-- Stability   :  Experimental
+-- Portability :  Portable
 module Benchmark.Marlowe.RolePayout (
   -- * Benchmarking
   benchmarks,
@@ -48,7 +45,6 @@ import Plutus.V2.Ledger.Api (
   ValidatorHash,
   singleton,
  )
-
 import qualified PlutusTx.AssocMap as AM (empty)
 
 {-

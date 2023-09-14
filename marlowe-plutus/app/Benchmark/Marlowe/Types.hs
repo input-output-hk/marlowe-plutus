@@ -1,15 +1,10 @@
------------------------------------------------------------------------------
+-- | Types for benchmarking Marlowe validators.
 --
--- Module      :  $Headers
+-- Module      :  Benchmark.Marlowe.Types
 -- License     :  Apache 2.0
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
---
-
------------------------------------------------------------------------------
-
--- | Types for benchmarking Marlowe validators.
 module Benchmark.Marlowe.Types (
   -- * Benchmarking
   Benchmark (..),

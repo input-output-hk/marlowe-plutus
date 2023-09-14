@@ -1,15 +1,12 @@
------------------------------------------------------------------------------
+{-# LANGUAGE RecordWildCards #-}
+
+-- | Utility functions for creating script contexts.
 --
--- Module      :  $Headers
+-- Module      :  Benchmark.Marlowe.Util
 -- License     :  Apache 2.0
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
---
------------------------------------------------------------------------------
-{-# LANGUAGE RecordWildCards #-}
-
--- | Utility functions for creating script contexts.
 module Benchmark.Marlowe.Util (
   -- * Conversion
   lovelace,
@@ -24,6 +21,7 @@ module Benchmark.Marlowe.Util (
 ) where
 
 import Codec.Serialise (deserialise)
+import qualified Data.ByteString.Lazy as LBS (fromStrict)
 import Plutus.V2.Ledger.Api (
   Address (Address),
   BuiltinData,
@@ -49,8 +47,6 @@ import Plutus.V2.Ledger.Api (
   fromBuiltin,
   singleton,
  )
-
-import qualified Data.ByteString.Lazy as LBS (fromStrict)
 import qualified PlutusTx.AssocMap as AM (Map, singleton)
 
 -- | Integer to lovelace.

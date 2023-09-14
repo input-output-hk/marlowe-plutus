@@ -1,16 +1,13 @@
------------------------------------------------------------------------------
---
--- Module      :  $Headers
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
---
------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Benchmarking support for Marlowe's semantics validator.
+--
+-- Module      :  Benchmark.Marlowe.Semantics
+-- License     :  Apache 2.0
+--
+-- Stability   :  Experimental
+-- Portability :  Portable
 module Benchmark.Marlowe.Semantics (
   -- * Benchmarking
   benchmarks,
@@ -62,7 +59,6 @@ import Plutus.V2.Ledger.Api (
   ValidatorHash,
   singleton,
  )
-
 import qualified PlutusTx.AssocMap as AM (empty, unionWith)
 
 -- | The serialised Marlowe semantics validator.

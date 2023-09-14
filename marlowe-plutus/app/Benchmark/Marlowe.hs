@@ -1,16 +1,13 @@
------------------------------------------------------------------------------
---
--- Module      :  $Headers
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
---
------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Benchmarking support for Marlowe's validators.
+--
+-- Module      :  Benchmark.Marlowe
+-- License     :  Apache 2.0
+--
+-- Stability   :  Experimental
+-- Portability :  Portable
 module Benchmark.Marlowe (
   -- * Benchmarking
   evaluationContext,
@@ -26,7 +23,9 @@ import Benchmark.Marlowe.Types (Benchmark (..))
 import Codec.Serialise (deserialise)
 import Control.Monad.Except (runExcept)
 import Data.Bifunctor (first)
+import qualified Data.ByteString.Lazy as LBS (readFile)
 import Data.List (isSuffixOf)
+import qualified Data.Map.Strict as M (Map, fromList)
 import Data.Text (Text)
 import Language.Marlowe.Core.V1.Semantics (MarloweData)
 import Language.Marlowe.Scripts (MarloweInput)
@@ -52,9 +51,6 @@ import Plutus.V2.Ledger.Api (
  )
 import System.Directory (listDirectory)
 import System.FilePath ((</>))
-
-import qualified Data.ByteString.Lazy as LBS (readFile)
-import qualified Data.Map.Strict as M (Map, fromList)
 
 -- | Read all of the benchmarking cases for a particular validator.
 readBenchmarks
