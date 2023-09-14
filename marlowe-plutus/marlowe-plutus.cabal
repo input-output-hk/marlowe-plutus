@@ -58,7 +58,6 @@ common lang
 library
   import:          lang
   hs-source-dirs:  src
-  visibility:      public
   build-depends:
     , base >=4.9 && <5
     , bytestring >=0.10.12 && <0.12
