@@ -1,20 +1,16 @@
-cabal-version:   3.4
-name:            marlowe-plutus
-version:         0.1.0.0
-license:         Apache-2.0
+cabal-version: 3.4
+name:          marlowe-plutus
+version:       0.1.0.0
+license:       Apache-2.0
+build-type:    Simple
+maintainer:    brian.bush@iohk.io
+stability:     experimental
+author:        Alexander Nemish
+synopsis:      Marlowe plutus validators
+category:      Language
 license-files:
   LICENSE
   NOTICE
-
-build-type:      Simple
-maintainer:      brian.bush@iohk.io
-stability:       experimental
-author:          Alexander Nemish
-synopsis:        Marlowe plutus validators
-category:        Language
-extra-doc-files:
-  CHANGELOG.md
-  README.md
 
 data-files:
   benchmarks/rolepayout/*.benchmark
