@@ -19,6 +19,7 @@ import Cardano.Binary (serialize')
 import qualified Data.ByteString as BS (writeFile)
 import qualified Data.ByteString.Base16 as B16 (encode)
 import Data.List (intercalate)
+import Language.Marlowe.Plutus (openRoleValidatorBytes, openRoleValidatorHash)
 import Plutus.V2.Ledger.Api (SerializedScript, ValidatorHash)
 
 -- | Run the benchmarks and export information about the validators and the benchmarking results.
@@ -70,6 +71,13 @@ main =
       "marlowe-rolepayout"
       RolePayout.validatorHash
       RolePayout.validatorBytes
+
+    -- Print the open-role validator, and write the plutus file.
+    printValidator
+      "Open role"
+      "open-role"
+      openRoleValidatorHash
+      openRoleValidatorBytes
 
 -- | Print information about a validator.
 printValidator
