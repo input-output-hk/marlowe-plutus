@@ -87,6 +87,12 @@ traceIfFalse _ = id
 mkValidator
   :: ValidatorHash
   -- ^ The hash of the corresponding Marlowe validator.
+  -> V1.CurrencySymbol
+  -- ^ The policy ID for the Charli3 oracle feed.
+  -> V1.TokenName
+  -- ^ The token name from the Charli3 oracle feed.
+  -> V1.ChoiceName
+  -- ^ Name of the oracle choice in Marlowe.
   -> V1.TokenName
   -- ^ Datum should be a thread token name.
   -> BuiltinData
@@ -96,6 +102,9 @@ mkValidator
   -> Bool
 mkValidator
   marloweValidatorHash
+  charli3CurrencySymbol
+  charli3TokenName
+  charli3ChoiceName
   threadTokenName
   _
   ScriptContext{scriptContextTxInfo = TxInfo{..}, scriptContextPurpose} = do
@@ -122,13 +131,13 @@ mkValidator
           case C3.getPriceDatas . C3.OracleFeed $ charli3Datum of
             [pd] -> C3.getPrice . C3.getPriceMap $ pd
             _ -> traceError "C3e"
-        charli3ValueOk = valueOf charli3Value "adb6f28429c860672e877f15f505a39899c1cdef9c68b2081a172736" "OracleFeed" > 1
+        charli3ValueOk = valueOf charli3Value charli3CurrencySymbol charli3TokenName > 1
 
         (currencySymbol, roleName) = do
           let valuesList = AssocMap.toList $ getValue ownValue
           case valuesList of
             [(possibleAdaSymbol, _), (currencySymbol, AssocMap.toList -> [(roleName, _)])]
-              | possibleAdaSymbol PlutusTxPrelude.== adaSymbol -> (currencySymbol, roleName)
+              | possibleAdaSymbol == adaSymbol -> (currencySymbol, roleName)
             [(currencySymbol, AssocMap.toList -> [(roleName, _)]), _] -> (currencySymbol, roleName)
             _ -> traceError "C3f"
 
@@ -143,7 +152,7 @@ mkValidator
 
         marloweRedeemerOk = do
           let TxInInfo{txInInfoOutRef = marloweTxOutRef} = marloweInput
-              inputContentUsesRole (V1.IChoice (V1.ChoiceId choiceId (V1.Role role)) choiceNum) = choiceId PlutusTxPrelude.== "Charlie3 ADAUSD" && role PlutusTxPrelude.== roleName && choiceNum == charli3Oracle
+              inputContentUsesRole (V1.IChoice (V1.ChoiceId choiceId (V1.Role role)) choiceNum) = choiceId == charli3ChoiceName && role == roleName && choiceNum == charli3Oracle
               inputContentUsesRole _ = False
               inputUsesRole (V1.Scripts.MerkleizedTxInput inputContent _) = inputContentUsesRole inputContent
               inputUsesRole (V1.Scripts.Input inputContent) = inputContentUsesRole inputContent
@@ -159,10 +168,17 @@ mkValidator
 
 validator :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
 validator = do
-  let validator' :: ValidatorHash -> BuiltinData -> BuiltinData -> BuiltinData -> ()
-      validator' mvh d r p = PlutusTxPrelude.check $ mkValidator mvh (PV2.unsafeFromBuiltinData d) r (PV2.unsafeFromBuiltinData p)
+  let charli3CurrencySymbol = "adb6f28429c860672e877f15f505a39899c1cdef9c68b2081a172736"
+      charli3TokenName = "OracleFeed"
+      charli3ChoiceName = "Charli3 ADAUSD"
+  let validator'
+        :: ValidatorHash -> V1.CurrencySymbol -> V1.TokenName -> V1.ChoiceName -> BuiltinData -> BuiltinData -> BuiltinData -> ()
+      validator' mvh c3p c3n c3c d r p = PlutusTxPrelude.check $ mkValidator mvh c3p c3n c3c (PV2.unsafeFromBuiltinData d) r (PV2.unsafeFromBuiltinData p)
   $$(PlutusTx.compile [||validator'||])
     `PlutusTx.applyCode` PlutusTx.liftCode V1.Scripts.marloweValidatorHash
+    `PlutusTx.applyCode` PlutusTx.liftCode charli3CurrencySymbol
+    `PlutusTx.applyCode` PlutusTx.liftCode charli3TokenName
+    `PlutusTx.applyCode` PlutusTx.liftCode charli3ChoiceName
 
 validatorBytes :: SerializedScript
 validatorBytes = serialiseCompiledCode validator
