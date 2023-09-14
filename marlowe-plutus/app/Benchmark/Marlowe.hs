@@ -58,7 +58,7 @@ readBenchmarks
   -> IO (Either String [Benchmark])
 readBenchmarks subfolder =
   do
-    folder <- (</> subfolder) <$> getDataDir
+    folder <- (</> ("benchmarks" </> subfolder)) <$> getDataDir
     files <- filter (isSuffixOf ".benchmark") . fmap (folder </>) <$> listDirectory folder
     sequence <$> mapM readBenchmark files
 
