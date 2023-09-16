@@ -11,9 +11,11 @@ import qualified Language.Marlowe.Scripts.Charli3 as Charli3 (validatorBytes, va
 main :: IO ()
 main =
   do
-    putStrLn $ "  Validator hash: " <> show Charli3.validatorHash
-    putStrLn "  Validator file: charli3.plutus"
+    let mainnet = True -- FIXME: Add command-line arguments.
+    putStrLn $ "Mainnet: " <> show mainnet
+    putStrLn $ "Validator hash: " <> show (Charli3.validatorHash mainnet)
+    putStrLn "Validator file: charli3.plutus"
     BS.writeFile "charli3.plutus" $
       "{\"type\": \"PlutusScriptV2\", \"description\": \"\", \"cborHex\": \""
-        <> B16.encode (serialize' Charli3.validatorBytes)
+        <> B16.encode (serialize' $ Charli3.validatorBytes mainnet)
         <> "\"}"
