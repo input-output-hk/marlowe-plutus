@@ -67,7 +67,10 @@ library
     , plutus-tx-plugin ==1.0.0.0
     , serialise ^>=0.2.6
 
-  exposed-modules: Language.Marlowe.Plutus
+  exposed-modules:
+    Language.Marlowe.Plutus
+    Language.Marlowe.Plutus.RoleTokens
+    Language.Marlowe.Plutus.RoleTokens.Types
 
   if flag(trace-plutus)
     cpp-options: -DTRACE_PLUTUS
@@ -99,6 +102,21 @@ executable marlowe-validators
     , plutus-ledger-api
     , plutus-tx
     , serialise
+    , text
+
+  ghc-options:    -threaded
+
+executable marlowe-minting-validator
+  import:         lang
+  hs-source-dirs: mint
+  main-is:        Main.hs
+  build-depends:
+    , base
+    , base16
+    , bytestring
+    , marlowe-plutus
+    , plutus-ledger-api
+    , plutus-tx
     , text
 
   ghc-options:    -threaded

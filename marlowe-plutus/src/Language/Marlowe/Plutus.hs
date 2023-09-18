@@ -44,6 +44,8 @@ module Language.Marlowe.Plutus (
   openRoleValidator,
   openRoleValidatorBytes,
   openRoleValidatorHash,
+  serialiseCompiledCode,
+  hashScript,
 ) where
 
 import Cardano.Crypto.Hash qualified as Hash
@@ -145,7 +147,7 @@ mkRolePayoutValidator (currency, role) _ ctx =
   Val.singleton currency role 1 `Val.leq` valueSpent (scriptContextTxInfo ctx)
 
 -- | Compute the hash of a script.
-hashScript :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ()) -> ValidatorHash
+hashScript :: CompiledCode fn -> ValidatorHash
 hashScript =
   ValidatorHash
     . toBuiltin
