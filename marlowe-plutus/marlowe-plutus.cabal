@@ -111,9 +111,11 @@ executable marlowe-minting-validator
   hs-source-dirs: mint
   main-is:        Main.hs
   build-depends:
+    , aeson
     , base
     , base16
     , bytestring
+    , containers
     , marlowe-plutus
     , plutus-ledger-api
     , plutus-tx
