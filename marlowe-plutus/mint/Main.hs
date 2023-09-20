@@ -7,7 +7,6 @@ import Data.Aeson.Types (FromJSONKeyFunction (..), Parser)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Base16 (decodeBase16)
-import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Short as SBS
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -51,7 +50,7 @@ main = do
           . fmap fromIntegral
           $ roleTokens
       txOutRef = TxOutRef (TxId $ toBuiltin $ unBase16 seedInputId) (fromIntegral seedInputIx)
-  BS8.putStrLn $
+  BS.putStr $
     SBS.fromShort $
       serialiseCompiledCode $
         policy (mkRoleTokens roleTokens') txOutRef
