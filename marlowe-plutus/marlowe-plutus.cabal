@@ -166,6 +166,7 @@ executable marlowe-charli3
     , cardano-binary
     , marlowe-cardano ==0.1.2.0
     , marlowe-plutus
+    , optparse-applicative
     , oracle-feed
     , plutus-core
     , plutus-ledger-api ==1.0.0.1

@@ -37,7 +37,9 @@
 {-# OPTIONS_GHC -fno-strictness #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:defer-errors #-}
 
+-- | Plutus validator for Charli3 bridge to Marlowe contracts.
 module Language.Marlowe.Scripts.Charli3 (
+  -- * Validator
   mkValidator,
   validator,
   validatorBytes,
@@ -63,7 +65,7 @@ import Plutus.V2.Ledger.Api (
   fromBuiltinData,
  )
 import Plutus.V2.Ledger.Api qualified as PV2
-import Plutus.V2.Ledger.Contexts (findDatum)
+import Plutus.V2.Ledger.Contexts (findDatum, txSignedBy)
 import PlutusTx (CompiledCode)
 import PlutusTx qualified
 import PlutusTx.AssocMap qualified as AssocMap
@@ -85,6 +87,7 @@ traceIfFalse _ = id
 
 #endif
 
+-- | Create the Plutus validator for the Charli3 bridge.
 mkValidator
   :: ValidatorHash
   -- ^ The hash of the corresponding Marlowe validator.
@@ -94,21 +97,21 @@ mkValidator
   -- ^ The token name from the Charli3 oracle feed.
   -> V1.ChoiceName
   -- ^ Name of the oracle choice in Marlowe.
-  -> V1.TokenName
-  -- ^ Datum should be a thread token name.
+  -> (PV2.PubKeyHash, V1.TokenName)
+  -- ^ Datum should be the public key hash of the oracle operator and a thread token name.
   -> Bool
-  -- ^ Ignored.
+  -- ^ The redeemer should be a boolean indicating whether the script continues running.
   -> ScriptContext
   -- ^ The script context.
   -> Bool
-mkValidator _ _ _ _ _ False _ = True -- FIXME: Insecure, for demonstration only.
+mkValidator _ _ _ _ (pkh, _) False ScriptContext{scriptContextTxInfo = txInfo} = txSignedBy txInfo pkh
 mkValidator
   marloweValidatorHash
   charli3CurrencySymbol
   charli3TokenName
   charli3ChoiceName
-  threadTokenName
-  _
+  (_, threadTokenName)
+  True
   ScriptContext{scriptContextTxInfo = txInfo@TxInfo{..}, scriptContextPurpose} = do
     let ownInput =
           case scriptContextPurpose of
@@ -167,28 +170,48 @@ mkValidator
 
     ownOutputOk && threadTokenOk && marloweRedeemerOk
 
-validator :: Bool -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-validator mainnet = do
+-- | The Plutus validator for the Charli3 bridge.
+validator
+  :: V1.CurrencySymbol
+  -- ^ The policy ID for the Charli3 oracle feed.
+  -> V1.TokenName
+  -- ^ The token name from the Charli3 oracle feed.
+  -> V1.ChoiceName
+  -- The validator.
+  -> CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
+validator charli3CurrencySymbol charli3TokenName charli3ChoiceName = do
   -- FIXME: Hard-coded values used for proof-of-concept demonstration only.
-  let charli3CurrencySymbol =
-        if mainnet
-          then "30d7c4da385a1f5044261d27b6a22d46b645ca3567636df5edeb303d" -- mainnet
-          else "e4c846f0f87a7b4524d8e7810ed957c6b7f6e4e2e2e42d75ffe7b373" -- preprod
-      charli3TokenName = "OracleFeed"
-      charli3ChoiceName = "Charli3 ADAUSD"
   let validator'
         :: ValidatorHash -> V1.CurrencySymbol -> V1.TokenName -> V1.ChoiceName -> BuiltinData -> BuiltinData -> BuiltinData -> ()
       validator' mvh c3p c3n c3c d r p =
         PlutusTxPrelude.check
           $ mkValidator mvh c3p c3n c3c (PV2.unsafeFromBuiltinData d) (PV2.unsafeFromBuiltinData r) (PV2.unsafeFromBuiltinData p)
   $$(PlutusTx.compile [||validator'||])
-    `PlutusTx.applyCode` PlutusTx.liftCode "2ed2631dbb277c84334453c5c437b86325d371f0835a28b910a91a6e" -- FIXME --  V1.Scripts.marloweValidatorHash
+    `PlutusTx.applyCode` PlutusTx.liftCode V1.Scripts.marloweValidatorHash
     `PlutusTx.applyCode` PlutusTx.liftCode charli3CurrencySymbol
     `PlutusTx.applyCode` PlutusTx.liftCode charli3TokenName
     `PlutusTx.applyCode` PlutusTx.liftCode charli3ChoiceName
 
-validatorBytes :: Bool -> SerializedScript
-validatorBytes = serialiseCompiledCode . validator
+-- | Compute the bytes of the Plutus validator for the Charli3 bridge.
+validatorBytes
+  :: V1.CurrencySymbol
+  -- ^ The policy ID for the Charli3 oracle feed.
+  -> V1.TokenName
+  -- ^ The token name from the Charli3 oracle feed.
+  -> V1.ChoiceName
+  -- ^ Name of the oracle choice in Marlowe.
+  -> SerializedScript
+  -- ^ The serialized Plutus script.
+validatorBytes = ((serialiseCompiledCode .) .) . validator
 
-validatorHash :: Bool -> ValidatorHash
-validatorHash = hashScript . validator
+-- | Compute the hash of the Plutus validator for the Charli3 bridge.
+validatorHash
+  :: V1.CurrencySymbol
+  -- ^ The policy ID for the Charli3 oracle feed.
+  -> V1.TokenName
+  -- ^ The token name from the Charli3 oracle feed.
+  -> V1.ChoiceName
+  -- ^ Name of the oracle choice in Marlowe.
+  -> ValidatorHash
+  -- ^ The validator hash.
+validatorHash = ((hashScript .) .) . validator
