@@ -34,7 +34,7 @@ commandParser =
               )
             <*> O.strArgument
               ( O.metavar "TOKEN_NAME"
-                  <> O.help "The token name for the Charlie3 oracle reference input token. For example, \"OracleFeed\"."
+                  <> O.help "The token name for the Charli3 oracle reference input token. For example, \"OracleFeed\"."
               )
             <*> O.strArgument
               ( O.metavar "CHOICE_NAME"
