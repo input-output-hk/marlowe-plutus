@@ -79,7 +79,7 @@ Available options:
                            on mainnet and
                            "e4c846f0f87a7b4524d8e7810ed957c6b7f6e4e2e2e42d75ffe7b373"
                            on preprod.
-  TOKEN_NAME               The token name for the Charlie3 oracle reference
+  TOKEN_NAME               The token name for the Charli3 oracle reference
                            input token. For example, "OracleFeed".
   CHOICE_NAME              The Marlowe choice name for the oracle input to the
                            contract. For example, "Charli3 ADAUSD".
