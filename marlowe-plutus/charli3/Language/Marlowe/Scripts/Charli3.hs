@@ -156,8 +156,10 @@ mkValidator
           traceIfFalse "C3i" (valueOf marloweValue currencySymbol threadTokenName > 0) -- Marlowe thread token not found.
         marloweRedeemerOk = do
           let TxInInfo{txInInfoOutRef = marloweTxOutRef} = marloweInput
-              inputContentUsesRole (V1.IChoice (V1.ChoiceId choiceId (V1.Role role)) choiceNum) = choiceId == charli3ChoiceName && role == roleName && choiceNum == charli3Oracle
-              inputContentUsesRole _ = False
+              -- Logically equivalent to "choice number matches if choice name matches and role matches".
+              inputContentUsesRole (V1.IChoice (V1.ChoiceId choiceId (V1.Role role)) choiceNum) =
+                choiceId /= charli3ChoiceName || role /= roleName || choiceNum == charli3Oracle
+              inputContentUsesRole _ = True
               inputUsesRole (V1.Scripts.MerkleizedTxInput inputContent _) = inputContentUsesRole inputContent
               inputUsesRole (V1.Scripts.Input inputContent) = inputContentUsesRole inputContent
               inputs :: V1.Scripts.MarloweInput
@@ -166,7 +168,7 @@ mkValidator
                 Just (Redeemer bytes) -> case fromBuiltinData bytes of
                   Just inputs -> inputs
                   Nothing -> traceError "C3k" -- Marlowe redeemer not decoded.
-          isJust $ find inputUsesRole inputs
+          all inputUsesRole inputs
 
     ownOutputOk && threadTokenOk && marloweRedeemerOk
 
