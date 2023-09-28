@@ -2,17 +2,14 @@
 
 The Charli3 oracle bridge is a Plutus V2 script that verifies that a Charli3 oracle's reference input datum is correctly embodied into an `IChoice` action for a Marlowe contract. ***This Plutus script is experimental and has not been optimized or audited.***
 
-This "oracle bridge" is a small Plutus validator script that verifies that the price from the Charli3 oracle feed's reference UTXO is correctly input into the price Choice for the Marlowe contract. The oracle bridge enforces the following security guarantees:
+The oracle bridge's validator executes in the same transaction as the Marlowe validator, a transaction where the Charli3 reference UTXO must be present. Several elements are present in such a transaction:
 
-1. The bridge will only read the price data from the oracle feed reference UTXO that contains the specified Charli3 `OracleFeed` token's policy ID.
-2. The bridge ensures that the `ChoiceId` of the Marlowe contract `IChoice` action matches the specified name of the Charli3 oracle feed (for example, `Charli3 ADAUSD`).
-3. The bridge checks that the `ChoiceNum` of the Marlowe contract `IChoice` action matches the prices datum in the oracle feed reference UTXO.
-4. The bridge checks for the presence of the "thread" role token in the Marlowe contract instance.
-5. The bridge holds the oracle-bridge role token for the Marlowe contract instance, ensuring that Marlowe will only accept oracle input from that particular bridge instance.
-6. The contract uses the Marlowe validator.
-7. The Cardano ledger and Charli3 semantics ensure that a "stale" or dated reference UTXO is not used by the bridge.
-
-The bridge assumes that the Charli3 oracle spends the UTxOs when the value stops being current, so one need not concern about the time at which the value refers.
+- A Charli3 oracle feed is a reference UTXO that contains an NFT named `OracleFeed` with a well-known policy ID and whose datum encodes the oracle's price data.
+- Marlowe contracts read oracle input via a `Choose` block where the name of the price feed is the `ChoiceName`, the value of the price is the `ChoiceNum`, and the party making the choice is the role for the oracle.
+- The Marlowe validator verifies that the oracle bridge holds the correct role token authorizing the oracle input.
+- The oracle bridge checks that the Charli3 UTXO is authentic (via the presence of the correct `OracleFeed` NFT).
+- The oracle bridge also checks that the `ChoiceNum` in the Marlowe `IChoice` action in the transaction exactly matches the price in the Charli3 reference UTXO's datum.
+- The oracle bridge verifies that it is reporting to the correct contract (via the contract's holding the correct thread token).
 
 The diagram below shows the oracle bridge's interaction with the Charli3 reference UTXO and with the Marlowe contract. The Marlowe contract is not aware of the bridge's nature aside from the fact that the bridge holds (in this example) the `Oracle` role token that authorizes the `IChoice` that inputs the `Charli3 ADA/USD` price into the Marlowe contract.
 
@@ -21,6 +18,11 @@ The diagram below shows the oracle bridge's interaction with the Charli3 referen
 The simplest possible Marlowe contract that interacts with an oracle is shown below. The contract simply waits for price input from the oracle bridge and then waits for a notification to close the contract. (Note that the price input and notification cannot take place in the same transaction because of Marlowe's guard against double-satisfaction attacks.) A more realistic Marlowe contract would use the price input in its payment logic.
 
 ![Simplest Marlowe contract that uses the oracle bridge](images/contract.png)
+
+
+## Example
+
+See the example of running the oracle on `mainnet`, [charli3.ipynb](charli3.ipynb), which is best viewed [here](https://nbviewer.org/github/input-output-hk/marlowe-plutus/blob/main/marlowe-plutus/charli3.ipynb), or its [video demonstration](https://youtu.be/_9DgXb323CE). Note that the example is for a slightly outdated version of this Plutus script.
 
 
 ## Parameters
@@ -74,9 +76,19 @@ marlowe-charli3 30d7c4da385a1f5044261d27b6a22d46b645ca3567636df5edeb303d \
 ```
 
 
-## Example
+## Security
 
-See the example of running the oracle on `mainnet`, [charli3.ipynb](charli3.ipynb), which is best viewed [here](https://nbviewer.org/github/input-output-hk/marlowe-plutus/blob/main/marlowe-plutus/charli3.ipynb), or its [video demonstration](https://youtu.be/_9DgXb323CE). Note that the example is for a slightly outdated version of this Plutus script.
+The oracle bridge enforces the following security guarantees:
+
+1. The bridge will only read the price data from the oracle feed reference UTXO that contains the specified Charli3 `OracleFeed` token's policy ID.
+2. The bridge ensures that the `ChoiceId` of the Marlowe contract `IChoice` action matches the specified name of the Charli3 oracle feed (for example, `Charli3 ADAUSD`).
+3. The bridge checks that the `ChoiceNum` of the Marlowe contract `IChoice` action matches the prices datum in the oracle feed reference UTXO.
+4. The bridge checks for the presence of the "thread" role token in the Marlowe contract instance.
+5. The bridge holds the oracle-bridge role token for the Marlowe contract instance, ensuring that Marlowe will only accept oracle input from that particular bridge instance.
+6. The contract uses the Marlowe validator.
+7. The Cardano ledger and Charli3 semantics ensure that a "stale" or dated reference UTXO is not used by the bridge.
+
+The bridge assumes that the Charli3 oracle spends the UTxOs when the value stops being current, so one need not concern about the time at which the value refers.
 
 
 ## Help
