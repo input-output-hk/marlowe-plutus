@@ -49,7 +49,7 @@ common lang
   ghc-options:
     -Wall -Wnoncanonical-monad-instances -Wincomplete-uni-patterns
     -Wincomplete-record-updates -Wredundant-constraints -Widentities
-    -Wunused-packages -Werror
+    -Werror
 
 library
   import:          lang
@@ -153,3 +153,27 @@ test-suite marlowe-plutus
 
   build-tool-depends: hspec-discover:hspec-discover
   ghc-options:        -threaded
+
+executable marlowe-charli3
+  import:         lang
+  hs-source-dirs: charli3
+  main-is:        Main.hs
+  other-modules:  Language.Marlowe.Scripts.Charli3
+  build-depends:
+    , base >=4.9 && <5
+    , base16-bytestring
+    , bytestring >=0.10.12 && <0.12
+    , cardano-binary
+    , marlowe-cardano ==0.1.2.0
+    , marlowe-plutus
+    , optparse-applicative
+    , oracle-feed
+    , plutus-core
+    , plutus-ledger-api ==1.0.0.1
+    , plutus-tx ==1.0.0.0
+    , plutus-tx-plugin ==1.0.0.0
+
+  if flag(trace-plutus)
+    cpp-options: -DTRACE_PLUTUS
+
+  ghc-options:    -threaded

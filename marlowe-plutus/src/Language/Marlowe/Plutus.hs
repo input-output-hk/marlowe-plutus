@@ -44,8 +44,11 @@ module Language.Marlowe.Plutus (
   openRoleValidator,
   openRoleValidatorBytes,
   openRoleValidatorHash,
-  serialiseCompiledCode,
+
+  -- * Utilities
   hashScript,
+  serialiseCompiledCode,
+  serialiseUPLC,
 ) where
 
 import Cardano.Crypto.Hash qualified as Hash
