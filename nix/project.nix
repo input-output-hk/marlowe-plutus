@@ -8,7 +8,7 @@ let
     compiler-nix-name = "ghc8107";
     shell.withHoogle = false;
     inputMap = {
-      "https://input-output-hk.github.io/cardano-haskell-packages" = inputs.CHaP;
+      "https://input-output-hk.github.io/cardano-haskell-packages" = inputs.iogx.inputs.CHaP;
     };
     modules = [{
       packages = {
