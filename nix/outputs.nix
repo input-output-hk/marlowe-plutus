@@ -11,7 +11,7 @@ in
     packages.validators = pkgs.runCommand "validators" { } ''
       mkdir -p $out
       cd $out
-      ${inputs.packages.marlowe-validators}/bin/marlowe-validators
+      ${inputs.self.packages.marlowe-validators}/bin/marlowe-validators
       rm *.tsv
     '';
   }
