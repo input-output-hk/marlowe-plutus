@@ -1,18 +1,17 @@
-# This file is part of the IOGX template and is documented at the link below:
-# https://www.github.com/input-output-hk/iogx#31-flakenix
-
 {
   description = "Plutus validators for Marlowe";
 
 
   inputs = {
-    iogx.url = "github:input-output-hk/iogx";
+    iogx.url = "github:input-output-hk/iogx?ref=v4";
   };
 
 
   outputs = inputs: inputs.iogx.lib.mkFlake {
     inherit inputs;
     repoRoot = ./.;
+    systems = [ "x86_64-linux" "x86_64-darwin" ];
+    outputs = import ./nix/outputs.nix;
   };
 
 
