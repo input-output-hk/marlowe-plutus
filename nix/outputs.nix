@@ -1,11 +1,11 @@
 { repoRoot, inputs, pkgs, system, lib }:
-let 
+let
   project = repoRoot.nix.project;
-in 
-[ 
+in
+[
   # Default packages, apps, devShells, checks, hydraJobs coming from the Haskell project
   (
-    project.flake 
+    project.flake
   )
   {
     packages.validators = pkgs.runCommand "validators" { } ''

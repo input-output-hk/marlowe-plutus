@@ -1,6 +1,6 @@
 { repoRoot, inputs, pkgs, system, lib }:
 
-cabalProject: 
+cabalProject:
 
 {
   name = "marlowe-plutus";
