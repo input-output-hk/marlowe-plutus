@@ -490,16 +490,15 @@
         "sphinxcontrib-haddock": "sphinxcontrib-haddock"
       },
       "locked": {
-        "lastModified": 1697459086,
-        "narHash": "sha256-nZhqFHxL0L5ODAaTtfOsf3EWLkJQXOIpCsDfoFtr6ZM=",
+        "lastModified": 1697555475,
+        "narHash": "sha256-orCo9QgNE3CLBSGeXZXjNXx0nahTi71ZCXMhj1Upg4U=",
         "owner": "input-output-hk",
         "repo": "iogx",
-        "rev": "5c71f6ad5038b6a91430bd94fbd7afd362bc3f21",
+        "rev": "be20493284255d15192b3e98ad8b4d51a73b2c8c",
         "type": "github"
       },
       "original": {
         "owner": "input-output-hk",
-        "ref": "v4",
         "repo": "iogx",
         "type": "github"
       }
@@ -515,11 +514,11 @@
         "sodium": "sodium"
       },
       "locked": {
-        "lastModified": 1696471795,
-        "narHash": "sha256-aNNvjUtCGXaXSp5M/HSj1SOeLjqLyTRWYbIHqAEeUp0=",
+        "lastModified": 1696445248,
+        "narHash": "sha256-2B/fqwyaRAaHVmkf15tKwkFbL5O46TmMw+Rc2viUPEY=",
         "owner": "input-output-hk",
         "repo": "iohk-nix",
-        "rev": "91f16fa8acb58b312f94977715c630d8bf77e33e",
+        "rev": "e32040e84180b3c27c0f13587025f6a17a4da520",
         "type": "github"
       },
       "original": {
