@@ -138,9 +138,43 @@ test-suite marlowe-plutus
     , bytestring
     , cardano-api
     , containers
+    , data-default
     , directory
     , filepath
     , hspec
+    , lens
+    , marlowe-cardano
+    , marlowe-plutus
+    , marlowe-test ^>=0.1
+    , plutus-ledger-api
+    , plutus-tx
+    , QuickCheck
+    , serialise
+    , transformers
+
+  build-tool-depends: hspec-discover:hspec-discover
+  ghc-options:        -threaded
+
+executable marlowe-plutus-tester
+  import:             lang
+  hs-source-dirs:     test
+  main-is:            Main.hs
+  other-modules:
+    Language.Marlowe.PlutusSpec
+    Paths_marlowe_plutus
+
+  build-depends:
+    , aeson
+    , base
+    , bytestring
+    , cardano-api
+    , cardano-crypto-class
+    , containers
+    , data-default
+    , directory
+    , filepath
+    , hspec
+    , hspec-core
     , lens
     , marlowe-cardano
     , marlowe-plutus
