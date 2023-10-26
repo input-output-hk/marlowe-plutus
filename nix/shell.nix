@@ -5,6 +5,10 @@ cabalProject:
 {
   name = "marlowe-plutus";
 
+  packages = [
+    pkgs.scriv
+  ];
+
   preCommit = {
     cabal-fmt.enable = true;
     cabal-fmt.extraOptions = "--no-tabular";
