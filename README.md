@@ -7,14 +7,20 @@ the spending of role payouts.
 
 ## Dev Shell
 
-To enter a dev shell with all dependencies installed, you can use
+This repository uses nix to provide the development and build environment.
 
-```bash
-nix develop
-```
+If you know nix, simply run `nix develop` to enter the shell; if prompted, trust 
+the flake config values to enable access to our binary caches.   
 
-Alternatively, if you have direnv installed, you can have the shell
-automatically load and refresh for you by running these commands:
+The nix code is based on a template from the 
+[IOGX flake](https://github.com/input-output-hk/iogx). 
+For instructions on how to install and configure nix (including how to enable 
+access to our binary caches), and how keep the flake inputs up to date, refer to 
+[this section](https://github.com/input-output-hk/iogx/blob/main/doc/api.md#flakenix)
+of the IOGX manual.
+
+If you have direnv installed, you can have the shell automatically load and 
+refresh for you by running these commands:
 
 ```bash
 mkdir .direnv
@@ -37,7 +43,7 @@ Alternatively, you can compile with `nix` using `nix build .#marlowe-validators`
 You can compile the validators using the following command:
 
 ```bash
-nix build .#validators
+nix build .#marlowe-validators
 ```
 
 This will build the project and run the `marlowe-validators` executable and
