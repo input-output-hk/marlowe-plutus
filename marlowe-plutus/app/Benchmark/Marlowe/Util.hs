@@ -1,27 +1,26 @@
+{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- | Utility functions for creating script contexts.
---
--- Module      :  Benchmark.Marlowe.Util
+-- Module      :  $Headers
 -- License     :  Apache 2.0
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
+
+-- | Utility functions for creating script contexts.
 module Benchmark.Marlowe.Util (
   -- * Conversion
   lovelace,
-  makeBuiltinData,
-  makeDatumMap,
   makeInput,
   makeOutput,
   makeRedeemerMap,
-
-  -- * Rewriting
+  makeDatumMap,
+  makeBuiltinData,
   updateScriptHash,
 ) where
 
 import Codec.Serialise (deserialise)
-import qualified Data.ByteString.Lazy as LBS (fromStrict)
+import Data.ByteString.Lazy qualified as LBS (fromStrict)
 import PlutusLedgerApi.V2 (
   Address (Address),
   BuiltinData,
@@ -38,7 +37,7 @@ import PlutusLedgerApi.V2 (
   TxInInfo (..),
   TxInfo (..),
   TxOut (..),
-  TxOutRef (..),
+  TxOutRef (TxOutRef),
   Value,
   adaSymbol,
   adaToken,
@@ -46,7 +45,7 @@ import PlutusLedgerApi.V2 (
   fromBuiltin,
   singleton,
  )
-import qualified PlutusTx.AssocMap as AM (Map, singleton)
+import PlutusTx.AssocMap qualified as AM (Map, singleton)
 
 -- | Integer to lovelace.
 lovelace
@@ -75,9 +74,11 @@ makeOutput
   -> Maybe DatumHash
   -> Maybe ScriptHash
   -> TxOut
-makeOutput credential value = TxOut (Address credential Nothing) value . maybe NoOutputDatum OutputDatumHash
+makeOutput credential value =
+  TxOut (Address credential Nothing) value
+    . maybe NoOutputDatum OutputDatumHash
 
--- Construct a map of redemers.
+-- Construct a map of redeemers.
 makeRedeemerMap
   :: ScriptPurpose
   -> LedgerBytes
@@ -95,7 +96,12 @@ makeDatumMap = (. (Datum . makeBuiltinData)) . AM.singleton
 makeBuiltinData
   :: LedgerBytes
   -> BuiltinData
-makeBuiltinData = dataToBuiltinData . deserialise . LBS.fromStrict . fromBuiltin . getLedgerBytes
+makeBuiltinData =
+  dataToBuiltinData
+    . deserialise
+    . LBS.fromStrict
+    . fromBuiltin
+    . getLedgerBytes
 
 -- Rewrite all of a particular script hash in the script context.
 updateScriptHash

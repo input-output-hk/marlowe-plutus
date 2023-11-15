@@ -98,7 +98,7 @@ executable marlowe-validators
     , marlowe-cardano ==0.2.1.0
     , marlowe-plutus
     , mtl
-    , plutus-core
+    , plutus-core:{plutus-core, plutus-core-execlib}
     , plutus-ledger-api
     , plutus-tx
     , serialise

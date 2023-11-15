@@ -1,56 +1,81 @@
+{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- | Benchmarking support for Marlowe's validators.
 --
 -- Module      :  Benchmark.Marlowe
 -- License     :  Apache 2.0
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
+
+-- | Benchmarking support for Marlowe's validators.
 module Benchmark.Marlowe (
   -- * Benchmarking
-  evaluationContext,
+  benchmarkToUPLC,
   executeBenchmark,
-  printBenchmark,
-  printResult,
+  evaluationContext,
   readBenchmark,
   readBenchmarks,
+  printBenchmark,
+  printResult,
   tabulateResults,
+  writeFlatUPLC,
+  writeFlatUPLCs,
 ) where
 
 import Benchmark.Marlowe.Types (Benchmark (..))
+import Benchmark.Marlowe.Types qualified as M
 import Codec.Serialise (deserialise)
+import Control.Monad (void)
 import Control.Monad.Except (runExcept)
 import Control.Monad.Writer (runWriterT)
 import Data.Bifunctor (bimap)
-import qualified Data.ByteString.Lazy as LBS (readFile)
+import Data.ByteString.Lazy qualified as LBS (readFile)
+import Data.Either.Extras (unsafeFromEither)
 import Data.List (isSuffixOf)
 import Language.Marlowe.Core.V1.Semantics (MarloweData)
 import Language.Marlowe.Scripts.Types (MarloweInput)
 import Paths_marlowe_plutus (getDataDir)
-import PlutusLedgerApi.V2 (
-  Data (Constr, I),
-  EvaluationContext,
-  EvaluationError,
-  ExBudget (ExBudget, exBudgetCPU, exBudgetMemory),
-  ExCPU (ExCPU),
-  ExMemory (ExMemory),
-  LogOutput,
-  MajorProtocolVersion (..),
-  ScriptContext (scriptContextTxInfo),
-  ScriptHash (..),
-  SerialisedScript,
-  TxInfo (txInfoId),
-  VerboseMode (Verbose),
-  deserialiseScript,
-  evaluateScriptCounting,
-  fromData,
-  mkEvaluationContext,
-  toData,
+import PlutusCore.Default qualified as PLC
+import PlutusCore.Executable.AstIO (fromNamedDeBruijnUPLC)
+import PlutusCore.Executable.Common (writeProgram)
+import PlutusCore.Executable.Types (
+  AstNameType (NamedDeBruijn),
+  Format (Flat),
+  Output (FileOutput),
+  PrintMode (Readable),
+  UplcProg,
  )
+import PlutusCore.MkPlc (mkConstant)
+import PlutusLedgerApi.Common.Versions
+import PlutusLedgerApi.V2
+import PlutusPrelude ((.*))
+import PlutusTx.Code (CompiledCode, getPlc)
 import System.Directory (listDirectory)
-import System.FilePath ((</>))
+import System.FilePath ((<.>), (</>))
+import UntypedPlutusCore (NamedDeBruijn, Program (..), applyProgram)
+import UntypedPlutusCore.Core.Type qualified as UPLC
+
+-- | Turn a `Benchmark.Marlowe.Types.Benchmark` to a UPLC program.
+benchmarkToUPLC
+  :: CompiledCode a
+  -- ^ semantics or role payout validator.
+  -> M.Benchmark
+  -- ^ `Benchmark.Marlowe.Types.Benchmark`, benchmarking type used by the executable,
+  -- it includes benchmarking results along with script info.
+  -> UPLC.Program NamedDeBruijn PLC.DefaultUni PLC.DefaultFun ()
+  -- ^ A named DeBruijn program, for turning to `Benchmarkable`.
+benchmarkToUPLC validator M.Benchmark{..} =
+  let wrap = UPLC.Program () (UPLC.Version 1 0 0)
+      datum = wrap $ mkConstant () bDatum
+      redeemer = wrap $ mkConstant () bRedeemer
+      context = wrap $ mkConstant () $ toData bScriptContext
+      prog = getPlc validator
+      appliedProg =
+        foldl1 (unsafeFromEither .* applyProgram) $
+          void prog : [datum, redeemer, context]
+   in appliedProg
 
 -- | Read all of the benchmarking cases for a particular validator.
 readBenchmarks
@@ -73,7 +98,9 @@ readBenchmark filename =
       case deserialise payload of
         Constr 0 [bDatum, bRedeemer, scriptContext, I cpu, I memory] ->
           do
-            bScriptContext <- maybe (Left "Failed deserializing script context") pure $ fromData scriptContext
+            bScriptContext <-
+              maybe (Left "Failed deserializing script context") pure $
+                fromData scriptContext
             let bReferenceCost = Just $ ExBudget (fromInteger cpu) (fromInteger memory)
             pure Benchmark{..}
         _ -> Left "Failed deserializing benchmark file."
@@ -84,13 +111,13 @@ printBenchmark
   -> IO ()
 printBenchmark Benchmark{..} =
   do
-    putStrLn ""
+    putStrLn "*** DATUM ***"
     print (fromData bDatum :: Maybe MarloweData)
-    putStrLn ""
+    putStrLn "*** REDEEMER ***"
     print (fromData bRedeemer :: Maybe MarloweInput)
-    putStrLn ""
+    putStrLn "*** SCRIPT CONTEXT ***"
     print bScriptContext
-    putStrLn ""
+    putStrLn "*** REFERENCE COST ***"
     print bReferenceCost
 
 -- | Run and print the results of benchmarking.
@@ -103,7 +130,8 @@ printResult
   -- ^ The action to run and print the results.
 printResult validator benchmark =
   case executeBenchmark validator benchmark of
-    Right (_, Right budget) -> putStrLn ("actual = " <> show budget <> " vs expected = " <> show (bReferenceCost benchmark))
+    Right (_, Right budget) ->
+      putStrLn ("actual = " <> show budget <> " vs expected = " <> show (bReferenceCost benchmark))
     Right (logs, Left msg) -> print (msg, logs)
     Left msg -> print msg
 
@@ -116,7 +144,7 @@ tabulateResults
   -> SerialisedScript
   -- ^ The serialisation of the validator script.
   -> [Benchmark]
-  -- ^ The benchmarking results.
+  -- ^ The benchmarking cases.
   -> [[String]]
   -- ^ A table of results, with a header in the first line.
 tabulateResults name hash validator benchmarks =
@@ -126,7 +154,13 @@ tabulateResults name hash validator benchmarks =
    in ["Validator", "Script", "TxId", "Measured CPU", "Measured Memory", "Reference CPU", "Reference Memory", "Message"]
         : [ [name, show hash, show txId]
             <> case executeBenchmark validator benchmark of
-              Right (_, Right budget) -> [show . unExCPU $ exBudgetCPU budget, show . unExMemory $ exBudgetMemory budget, cpuRef, memoryRef, mempty]
+              Right (_, Right budget) ->
+                [ show . unExCPU $ exBudgetCPU budget
+                , show . unExMemory $ exBudgetMemory budget
+                , cpuRef
+                , memoryRef
+                , mempty
+                ]
               Right (logs, Left msg) -> [na, na, cpuRef, memoryRef, show (logs, msg)]
               Left msg -> [na, na, cpuRef, memoryRef, show msg]
           | benchmark@Benchmark{..} <- benchmarks
@@ -135,7 +169,6 @@ tabulateResults name hash validator benchmarks =
                 memoryRef = maybe na (show . unExMemory . exBudgetMemory) bReferenceCost
           ]
 
-{-
 -- | Write flat UPLC files for benchmarks.
 writeFlatUPLCs
   :: (FilePath -> Benchmark -> IO ())
@@ -144,10 +177,8 @@ writeFlatUPLCs
   -> IO ()
 writeFlatUPLCs writer benchmarks folder =
   sequence_
-    [
-      writer (folder </> show txId <> "-uplc" <.> "flat") benchmark
-    |
-      benchmark@Benchmark{..} <- benchmarks
+    [ writer (folder </> show txId <> "-uplc" <.> "flat") benchmark
+    | benchmark@Benchmark{..} <- benchmarks
     , let txId = txInfoId $ scriptContextTxInfo bScriptContext
     ]
 
@@ -158,20 +189,15 @@ writeFlatUPLC
   -> Benchmark
   -> IO ()
 writeFlatUPLC validator filename Benchmark{..} =
-  let
-    unsafeFromRight (Right x) = x
-    unsafeFromRight _         = error "unsafeFromRight failed"
-    wrap = Program () (Version 1 0 0)
-    datum = wrap $ mkConstant () bDatum :: UplcProg ()
-    redeemer = wrap $ mkConstant () bRedeemer :: UplcProg ()
-    context = wrap $ mkConstant () $ toData bScriptContext :: UplcProg ()
-    prog = fromNamedDeBruijnUPLC $ getPlc validator
-    applied =
-      foldl1 (unsafeFromRight .* applyProgram)
-        $ void prog : [datum, redeemer, context]
-  in
-    writeProgram (FileOutput filename) (Flat NamedDeBruijn) Readable applied
--}
+  let wrap = Program () (Version 1 0 0)
+      datum = wrap $ mkConstant () bDatum :: UplcProg ()
+      redeemer = wrap $ mkConstant () bRedeemer :: UplcProg ()
+      context = wrap $ mkConstant () $ toData bScriptContext :: UplcProg ()
+      prog = fromNamedDeBruijnUPLC $ getPlc validator
+      applied =
+        foldl1 (unsafeFromEither .* applyProgram) $
+          void prog : [datum, redeemer, context]
+   in writeProgram (FileOutput filename) (Flat NamedDeBruijn) Readable applied
 
 -- | Run a benchmark case.
 executeBenchmark
@@ -182,15 +208,15 @@ executeBenchmark
   -> Either String (LogOutput, Either EvaluationError ExBudget)
   -- ^ An error or the cost.
 executeBenchmark serialisedValidator Benchmark{..} =
-  case deserialiseScript (MajorProtocolVersion 8) serialisedValidator of
-    Left message -> Left $ show message
-    Right validator ->
-      case evaluationContext of
-        Left message -> Left message
-        Right ec ->
+  case evaluationContext of
+    Left message -> Left message
+    Right ec ->
+      case deserialiseScript futurePV serialisedValidator of
+        Left err -> Left (show err)
+        Right validator ->
           Right $
             evaluateScriptCounting
-              (MajorProtocolVersion 8)
+              futurePV
               Verbose
               ec
               validator
@@ -199,7 +225,11 @@ executeBenchmark serialisedValidator Benchmark{..} =
 -- | The execution context for benchmarking.
 evaluationContext :: Either String EvaluationContext
 evaluationContext =
-  bimap show fst . runExcept . runWriterT . mkEvaluationContext $ snd <$> testCostModel
+  bimap show fst
+    . runExcept
+    . runWriterT
+    . mkEvaluationContext
+    $ snd <$> testCostModel
 
 -- | Cost model, hardwired for testing and fair benchmarking.
 testCostModel :: [(String, Integer)]

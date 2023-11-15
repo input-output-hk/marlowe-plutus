@@ -1,10 +1,12 @@
--- | Types for benchmarking Marlowe validators.
---
--- Module      :  Benchmark.Marlowe.Types
+{-# LANGUAGE DerivingStrategies #-}
+
+-- Module      :  $Headers
 -- License     :  Apache 2.0
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
+
+-- | Types for benchmarking Marlowe validators.
 module Benchmark.Marlowe.Types (
   -- * Benchmarking
   Benchmark (..),
@@ -22,9 +24,10 @@ data Benchmark = Benchmark
   , bScriptContext :: ScriptContext
   -- ^ The script context.
   , bReferenceCost :: Maybe ExBudget
-  -- ^ The previously measured execution costs.
+  -- ^ The previously measured execution costs in production, which uses the Plutus version on
+  -- August 18 2022 (commit 6ed578b592f46afc0e77f4d19e5955a6eb439ba4).
   }
-  deriving (Show)
+  deriving stock (Show)
 
 -- | Construct a benchmarking case.
 makeBenchmark

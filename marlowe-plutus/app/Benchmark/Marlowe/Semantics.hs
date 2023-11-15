@@ -1,23 +1,26 @@
+{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- | Benchmarking support for Marlowe's semantics validator.
---
 -- Module      :  Benchmark.Marlowe.Semantics
 -- License     :  Apache 2.0
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
+
+-- | Benchmarking support for Marlowe's semantics validator.
 module Benchmark.Marlowe.Semantics (
   -- * Benchmarking
-  benchmarks,
-  exampleBenchmark,
-  rescript,
   validatorBytes,
   validatorHash,
+  exampleBenchmark,
+  writeUPLC,
+  benchmarks,
+  rescript,
 ) where
 
-import Benchmark.Marlowe (readBenchmarks)
+import Benchmark.Marlowe (readBenchmarks, writeFlatUPLC)
+import Benchmark.Marlowe.RolePayout qualified as RolePayout (validatorHash)
 import Benchmark.Marlowe.Types (Benchmark (..), makeBenchmark)
 import Benchmark.Marlowe.Util (
   lovelace,
@@ -29,7 +32,11 @@ import Benchmark.Marlowe.Util (
   updateScriptHash,
  )
 import Data.Bifunctor (second)
-import Language.Marlowe.Plutus (marloweValidatorBytes, marloweValidatorHash, rolePayoutValidatorHash)
+import Language.Marlowe.Plutus (
+  marloweValidator,
+  marloweValidatorBytes,
+  marloweValidatorHash,
+ )
 import PlutusLedgerApi.V2 (
   Credential (PubKeyCredential, ScriptCredential),
   ExBudget (ExBudget),
@@ -59,7 +66,7 @@ import PlutusLedgerApi.V2 (
   UpperBound (UpperBound),
   singleton,
  )
-import qualified PlutusTx.AssocMap as AM (empty, unionWith)
+import PlutusTx.AssocMap qualified as AM (empty, unionWith)
 
 -- | The serialised Marlowe semantics validator.
 validatorBytes :: SerialisedScript
@@ -73,14 +80,12 @@ validatorHash = marloweValidatorHash
 benchmarks :: IO (Either String [Benchmark])
 benchmarks = second (rescript <$>) <$> readBenchmarks "semantics"
 
-{-
 -- | Write flat UPLC for a benchmark.
 writeUPLC
   :: FilePath
   -> Benchmark
   -> IO ()
 writeUPLC = writeFlatUPLC marloweValidator
--}
 
 -- | Revise the validator hashes in the benchmark's script context.
 rescript
@@ -94,7 +99,7 @@ rescript benchmark@Benchmark{..} =
           marloweValidatorHash
           $ updateScriptHash
             "e165610232235bbbbeff5b998b233daae42979dec92a6722d9cda989"
-            rolePayoutValidatorHash
+            RolePayout.validatorHash
             bScriptContext
     }
 
