@@ -2,12 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- Module      :  Benchmark.Marlowe.RolePayout
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
-
 ---- | Benchmarking support for Marlowe's role-payout validator.
 module Benchmark.Marlowe.RolePayout (
   -- * Benchmarking
@@ -31,7 +25,7 @@ import Benchmark.Marlowe.Util (
   updateScriptHash,
  )
 import Data.Bifunctor (second)
-import Language.Marlowe.Plutus (
+import Language.Marlowe.Plutus.RolePayout (
   rolePayoutValidator,
   rolePayoutValidatorBytes,
   rolePayoutValidatorHash,

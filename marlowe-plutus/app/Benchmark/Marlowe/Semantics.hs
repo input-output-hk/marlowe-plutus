@@ -2,12 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- Module      :  Benchmark.Marlowe.Semantics
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
-
 -- | Benchmarking support for Marlowe's semantics validator.
 module Benchmark.Marlowe.Semantics (
   -- * Benchmarking
@@ -32,7 +26,7 @@ import Benchmark.Marlowe.Util (
   updateScriptHash,
  )
 import Data.Bifunctor (second)
-import Language.Marlowe.Plutus (
+import Language.Marlowe.Plutus.Semantics (
   marloweValidator,
   marloweValidatorBytes,
   marloweValidatorHash,

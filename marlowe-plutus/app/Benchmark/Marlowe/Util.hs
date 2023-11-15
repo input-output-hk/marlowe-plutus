@@ -1,12 +1,6 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- Module      :  $Headers
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
-
 -- | Utility functions for creating script contexts.
 module Benchmark.Marlowe.Util (
   -- * Conversion

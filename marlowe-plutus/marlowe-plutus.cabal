@@ -69,8 +69,11 @@ library
 
   exposed-modules:
     Language.Marlowe.Plutus
+    Language.Marlowe.Plutus.OpenRoles
+    Language.Marlowe.Plutus.RolePayout
     Language.Marlowe.Plutus.RoleTokens
     Language.Marlowe.Plutus.RoleTokens.Types
+    Language.Marlowe.Plutus.Semantics
 
   if flag(trace-plutus)
     cpp-options: -DTRACE_PLUTUS

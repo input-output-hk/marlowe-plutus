@@ -2,13 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
---
--- Module      :  Benchmark.Marlowe
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
-
 -- | Benchmarking support for Marlowe's validators.
 module Benchmark.Marlowe (
   -- * Benchmarking

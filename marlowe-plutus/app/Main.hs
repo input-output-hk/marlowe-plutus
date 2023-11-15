@@ -1,12 +1,6 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- Module      :  Main
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
-
 -- | Run benchmarks for Marlowe validators.
 module Main (
   -- * Entry point
@@ -30,6 +24,7 @@ import Cardano.Binary (serialize')
 import Data.ByteString qualified as BS (writeFile)
 import Data.ByteString.Base16 qualified as B16 (encode)
 import Data.List (intercalate)
+import Language.Marlowe.Plutus.OpenRoles (openRoleValidatorBytes, openRoleValidatorHash)
 import Paths_marlowe_plutus (getDataDir)
 import PlutusLedgerApi.V2 (ScriptHash, SerialisedScript)
 import System.FilePath ((</>))
@@ -81,6 +76,13 @@ main =
       "marlowe-rolepayout"
       RolePayout.validatorHash
       RolePayout.validatorBytes
+
+    -- Print the semantics validator, and write the plutus file.
+    printValidator
+      "Open roles"
+      (dir <> "marlowe-openroles")
+      openRoleValidatorHash
+      openRoleValidatorBytes
 
 -- | Print information about a validator.
 printValidator
