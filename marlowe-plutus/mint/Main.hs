@@ -51,5 +51,5 @@ main = do
       txOutRef = TxOutRef (TxId $ toBuiltin $ unBase16 seedInputId) (fromIntegral seedInputIx)
   BS.putStr $
     SBS.fromShort $
-      undefined $
+      serialiseCompiledCode $
         policy (mkRoleTokens roleTokens') txOutRef

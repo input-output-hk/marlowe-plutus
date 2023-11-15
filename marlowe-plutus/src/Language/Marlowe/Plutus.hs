@@ -630,7 +630,7 @@ openRoleValidator =
             mvh
             (unsafeFromBuiltinData d)
             (unsafeFromBuiltinData r)
-            (Haskell.undefined p) -- (unsafeFromBuiltinData p)
+            (unsafeFromBuiltinData p)
       errorOrApplied =
         $$(PlutusTx.compile [||openRoleValidator'||])
           `PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 marloweValidatorHash
