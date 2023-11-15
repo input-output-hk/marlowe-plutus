@@ -31,7 +31,6 @@ module Language.Marlowe.Plutus (
   -- * Semantics Validator
   marloweValidator,
   marloweValidatorBytes,
-  marloweValidatorCompiled,
   marloweValidatorHash,
   mkMarloweValidator,
 
@@ -47,28 +46,20 @@ module Language.Marlowe.Plutus (
 
   -- * Utilities
   hashScript,
-  serialiseCompiledCode,
-  serialiseUPLC,
 ) where
 
 import Cardano.Crypto.Hash qualified as Hash
-import Codec.Serialise (serialise)
-import Control.Lens (over)
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BSL
 import Data.ByteString.Short qualified as SBS
-import Data.Functor (void)
-import Flat (flat)
 import GHC.Generics (Generic)
 import Language.Marlowe.Core.V1.Semantics as Semantics
 import Language.Marlowe.Core.V1.Semantics.Types as Semantics
-import Language.Marlowe.Scripts (MarloweInput, MarloweTxInput (..))
-import Plutus.V1.Ledger.Address (scriptHashAddress)
-import Plutus.V1.Ledger.Address qualified as Address (scriptHashAddress)
-import Plutus.V1.Ledger.Api (ValidatorHash (..))
-import Plutus.V1.Ledger.Value (valueOf)
-import Plutus.V1.Ledger.Value qualified as Val
-import Plutus.V2.Ledger.Api (
+import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
+import PlutusCore.Version (plcVersion100)
+import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
+import PlutusLedgerApi.V1.Value (valueOf)
+import PlutusLedgerApi.V1.Value qualified as Val
+import PlutusLedgerApi.V2 (
   Credential (..),
   Datum (Datum),
   DatumHash (DatumHash),
@@ -80,25 +71,25 @@ import Plutus.V2.Ledger.Api (
   POSIXTimeRange,
   Redeemer (..),
   ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
+  ScriptHash (..),
   ScriptPurpose (Spending),
-  SerializedScript,
+  SerialisedScript,
   TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
   TxInfo (TxInfo, txInfoInputs, txInfoOutputs, txInfoValidRange),
   UnsafeFromData (..),
   UpperBound (..),
   Value (..),
   adaSymbol,
+  serialiseCompiledCode,
  )
-import Plutus.V2.Ledger.Api qualified as Ledger (Address (Address))
-import Plutus.V2.Ledger.Contexts (findDatum, findDatumHash, txSignedBy, valueSpent)
-import Plutus.V2.Ledger.Tx (OutputDatum (OutputDatumHash), TxOut (TxOut, txOutAddress, txOutDatum, txOutValue))
-import PlutusTx (CompiledCode, getPlc)
+import PlutusLedgerApi.V2 qualified as Ledger (Address (Address))
+import PlutusLedgerApi.V2.Contexts (findDatum, findDatumHash, txSignedBy, valueSpent)
+import PlutusLedgerApi.V2.Tx (OutputDatum (OutputDatumHash), TxOut (TxOut, txOutAddress, txOutDatum, txOutValue))
+import PlutusTx (CompiledCode)
 import PlutusTx qualified
 import PlutusTx.AssocMap qualified as AssocMap
 import PlutusTx.Plugin ()
 import PlutusTx.Prelude as PlutusTxPrelude hiding (traceError, traceIfFalse)
-import UntypedPlutusCore (DefaultFun, DefaultUni)
-import UntypedPlutusCore qualified as UPLC
 import Prelude qualified as Haskell
 
 -- Conditionally suppress traces, in order to save bytes.
@@ -150,34 +141,20 @@ mkRolePayoutValidator (currency, role) _ ctx =
   Val.singleton currency role 1 `Val.leq` valueSpent (scriptContextTxInfo ctx)
 
 -- | Compute the hash of a script.
-hashScript :: CompiledCode fn -> ValidatorHash
+hashScript :: CompiledCode fn -> ScriptHash
 hashScript =
-  ValidatorHash
+  ScriptHash
     . toBuiltin
     . (Hash.hashToBytes :: Hash.Hash Hash.Blake2b_224 SBS.ShortByteString -> BS.ByteString)
     . Hash.hashWith (BS.append "\x02" . SBS.fromShort) -- For Plutus V2.
     . serialiseCompiledCode
 
-serialiseCompiledCode :: CompiledCode a -> SBS.ShortByteString
-serialiseCompiledCode = serialiseUPLC . toNameless . void . getPlc
-  where
-    toNameless
-      :: UPLC.Program UPLC.NamedDeBruijn DefaultUni DefaultFun ()
-      -> UPLC.Program UPLC.DeBruijn DefaultUni DefaultFun ()
-    toNameless = over UPLC.progTerm $ UPLC.termMapNames UPLC.unNameDeBruijn
-
--- | Turns a program's AST (most likely manually constructed)
--- into a binary format that is understood by the network and can be stored on-chain.
-serialiseUPLC :: UPLC.Program UPLC.DeBruijn DefaultUni DefaultFun () -> SBS.ShortByteString
-serialiseUPLC =
-  SBS.toShort . BSL.toStrict . serialise . flat
-
 -- | The hash of the Marlowe payout validator.
-rolePayoutValidatorHash :: ValidatorHash
+rolePayoutValidatorHash :: ScriptHash
 rolePayoutValidatorHash = hashScript rolePayoutValidator
 
 -- | The serialisation of the Marlowe payout validator.
-rolePayoutValidatorBytes :: SerializedScript
+rolePayoutValidatorBytes :: SerialisedScript
 rolePayoutValidatorBytes = serialiseCompiledCode rolePayoutValidator
 
 {-# INLINEABLE closeInterval #-}
@@ -195,7 +172,7 @@ closeInterval _ = Nothing
 
 -- | The Marlowe semantics validator.
 mkMarloweValidator
-  :: ValidatorHash
+  :: ScriptHash
   -- ^ The hash of the corresponding Marlowe payout validator.
   -> MarloweData
   -- ^ The datum is the Marlowe parameters, state, and contract.
@@ -320,7 +297,7 @@ mkMarloweValidator
 
       -- Check for the presence of multiple Marlowe validators or other Plutus validators.
       examineScripts
-        :: (ValidatorHash -> Bool) -- Test for this validator.
+        :: (ScriptHash -> Bool) -- Test for this validator.
         -> Maybe TxInInfo -- The input for this validator, if found so far.
         -> Bool -- Whether no other validator has been found so far.
         -> [TxInInfo] -- The inputs remaining to be examined.
@@ -345,7 +322,7 @@ mkMarloweValidator
       examineScripts f self others (_ : txs) = examineScripts f self others txs
 
       -- Check if inputs are being spent from the same script.
-      sameValidatorHash :: TxInInfo -> ValidatorHash -> Bool
+      sameValidatorHash :: TxInInfo -> ScriptHash -> Bool
       sameValidatorHash TxInInfo{txInInfoResolved = TxOut{txOutAddress = Ledger.Address (ScriptCredential vh1) _}} vh2 = vh1 == vh2
       sameValidatorHash _ _ = False
 
@@ -475,7 +452,7 @@ mkMarloweValidator
 -- | The validator for Marlowe semantics.
 marloweValidator :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
 marloweValidator =
-  let marloweValidator' :: ValidatorHash -> BuiltinData -> BuiltinData -> BuiltinData -> ()
+  let marloweValidator' :: ScriptHash -> BuiltinData -> BuiltinData -> BuiltinData -> ()
       marloweValidator' rpvh d r p =
         check
           $ mkMarloweValidator
@@ -483,25 +460,19 @@ marloweValidator =
             (unsafeFromBuiltinData d)
             (unsafeFromBuiltinData r)
             (unsafeFromBuiltinData p)
-   in $$(PlutusTx.compile [||marloweValidator'||])
-        `PlutusTx.applyCode` PlutusTx.liftCode rolePayoutValidatorHash
-
-marloweValidatorCompiled
-  :: PlutusTx.CompiledCode (ValidatorHash -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> ())
-marloweValidatorCompiled = Haskell.undefined
-
---  let
---    mkUntypedMarloweValidator :: ValidatorHash -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> PlutusTx.BuiltinData -> ()
---    mkUntypedMarloweValidator rp = Scripts.mkUntypedValidator (mkMarloweValidator rp)
---  in
---    $$(PlutusTx.compile [|| mkUntypedMarloweValidator ||])
+      errorOrApplied =
+        $$(PlutusTx.compile [||marloweValidator'||])
+          `PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 rolePayoutValidatorHash
+   in case errorOrApplied of
+        Haskell.Left err -> Haskell.error $ "Application of role-payout validator hash to marlowe validator failed." <> err
+        Haskell.Right applied -> applied
 
 -- | The hash of the Marlowe semantics validator.
-marloweValidatorHash :: ValidatorHash
+marloweValidatorHash :: ScriptHash
 marloweValidatorHash = hashScript marloweValidator
 
 -- | The serialisation of the Marlowe payout validator.
-marloweValidatorBytes :: SerializedScript
+marloweValidatorBytes :: SerialisedScript
 marloweValidatorBytes = serialiseCompiledCode marloweValidator
 
 -- By decoding only the part of the script context I was able
@@ -578,7 +549,7 @@ instance Eq SubTxInfo where
    "4" - Missing thread token.
 -}
 mkOpenRoleValidator
-  :: ValidatorHash
+  :: ScriptHash
   -- ^ The hash of the corresponding Marlowe validator.
   -> Semantics.TokenName
   -- ^ Datum should be a thread token name.
@@ -595,7 +566,7 @@ mkOpenRoleValidator
     { subScriptContextTxInfo = SubTxInfo{subTxInfoInputs, subTxInfoRedeemers}
     , subScriptContextPurpose = Spending txOutRef
     } = do
-    let marloweValidatorAddress = scriptHashAddress marloweValidatorHash
+    let marloweValidatorAddress = Address.scriptHashAddress marloweValidatorHash
         -- Performance:
         -- In the case of three inputs `find` seems to be faster than custom single pass over the list.
         -- Inlined pattern matching over `Maybe` in both cases also seems to be faster than separate helper function.
@@ -651,16 +622,26 @@ mkOpenRoleValidator _ _ _ _ = False
 --  * Create "typed by `Any` validator".
 --  * Coerce it if you like. This step is not required - we only need `TypedValidator`.
 openRoleValidator :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-openRoleValidator = do
-  let openRoleValidator' :: ValidatorHash -> BuiltinData -> BuiltinData -> BuiltinData -> ()
-      openRoleValidator' mvh d r p = PlutusTxPrelude.check $ mkOpenRoleValidator mvh (unsafeFromBuiltinData d) r (unsafeFromBuiltinData p)
-  $$(PlutusTx.compile [||openRoleValidator'||])
-    `PlutusTx.applyCode` PlutusTx.liftCode marloweValidatorHash
+openRoleValidator =
+  let openRoleValidator' :: ScriptHash -> BuiltinData -> BuiltinData -> BuiltinData -> ()
+      openRoleValidator' mvh d r p =
+        check
+          $ mkOpenRoleValidator
+            mvh
+            (unsafeFromBuiltinData d)
+            (unsafeFromBuiltinData r)
+            (Haskell.undefined p) -- (unsafeFromBuiltinData p)
+      errorOrApplied =
+        $$(PlutusTx.compile [||openRoleValidator'||])
+          `PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 marloweValidatorHash
+   in case errorOrApplied of
+        Haskell.Left err -> Haskell.error $ "Application of marlowe validator hash to openRole validator failed." <> err
+        Haskell.Right applied -> applied
 
-openRoleValidatorBytes :: SerializedScript
+openRoleValidatorBytes :: SerialisedScript
 openRoleValidatorBytes = serialiseCompiledCode openRoleValidator
 
-openRoleValidatorHash :: ValidatorHash
+openRoleValidatorHash :: ScriptHash
 openRoleValidatorHash = hashScript openRoleValidator
 
 PlutusTx.makeLift ''SubTxInfo

@@ -30,15 +30,16 @@ import Benchmark.Marlowe.Util (
  )
 import Data.Bifunctor (second)
 import Language.Marlowe.Plutus (marloweValidatorBytes, marloweValidatorHash, rolePayoutValidatorHash)
-import Plutus.V2.Ledger.Api (
+import PlutusLedgerApi.V2 (
   Credential (PubKeyCredential, ScriptCredential),
   ExBudget (ExBudget),
   Extended (..),
   Interval (Interval),
   LowerBound (LowerBound),
   ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
+  ScriptHash,
   ScriptPurpose (Spending),
-  SerializedScript,
+  SerialisedScript,
   TxInfo (
     TxInfo,
     txInfoDCert,
@@ -56,17 +57,16 @@ import Plutus.V2.Ledger.Api (
   ),
   TxOutRef (TxOutRef),
   UpperBound (UpperBound),
-  ValidatorHash,
   singleton,
  )
 import qualified PlutusTx.AssocMap as AM (empty, unionWith)
 
 -- | The serialised Marlowe semantics validator.
-validatorBytes :: SerializedScript
+validatorBytes :: SerialisedScript
 validatorBytes = marloweValidatorBytes
 
 -- | The script hash for the Marlowe semantics validator.
-validatorHash :: ValidatorHash
+validatorHash :: ScriptHash
 validatorHash = marloweValidatorHash
 
 -- | The benchmark cases for the Marlowe semantics validator.

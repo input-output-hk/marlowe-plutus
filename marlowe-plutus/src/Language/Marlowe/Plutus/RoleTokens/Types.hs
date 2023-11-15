@@ -26,11 +26,11 @@ module Language.Marlowe.Plutus.RoleTokens.Types (
 ) where
 
 import GHC.Generics (Generic)
-import qualified Plutus.V2.Ledger.Api as PV2
+import qualified PlutusLedgerApi.V2 as PV2
 import PlutusTx (makeIsDataIndexed)
 import PlutusTx.Builtins (serialiseData)
 import PlutusTx.Lift (makeLift)
-import PlutusTx.Prelude
+import PlutusTx.Prelude hiding (last)
 import qualified Prelude as Haskell
 
 -- | Invariant: internal list has unique token name entries and is sorted.

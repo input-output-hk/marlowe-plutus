@@ -22,7 +22,7 @@ module Benchmark.Marlowe.Util (
 
 import Codec.Serialise (deserialise)
 import qualified Data.ByteString.Lazy as LBS (fromStrict)
-import Plutus.V2.Ledger.Api (
+import PlutusLedgerApi.V2 (
   Address (Address),
   BuiltinData,
   Credential (..),
@@ -39,7 +39,6 @@ import Plutus.V2.Ledger.Api (
   TxInfo (..),
   TxOut (..),
   TxOutRef (..),
-  ValidatorHash,
   Value,
   adaSymbol,
   adaToken,
@@ -100,8 +99,8 @@ makeBuiltinData = dataToBuiltinData . deserialise . LBS.fromStrict . fromBuiltin
 
 -- Rewrite all of a particular script hash in the script context.
 updateScriptHash
-  :: ValidatorHash
-  -> ValidatorHash
+  :: ScriptHash
+  -> ScriptHash
   -> ScriptContext
   -> ScriptContext
 updateScriptHash oldHash newHash scriptContext =

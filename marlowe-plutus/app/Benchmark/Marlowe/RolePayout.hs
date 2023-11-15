@@ -30,19 +30,19 @@ import Benchmark.Marlowe.Util (
  )
 import Data.Bifunctor (second)
 import Language.Marlowe.Plutus (rolePayoutValidatorBytes, rolePayoutValidatorHash)
-import Plutus.V2.Ledger.Api (
+import PlutusLedgerApi.V2 (
   Credential (PubKeyCredential, ScriptCredential),
   ExBudget (ExBudget),
   Extended (NegInf, PosInf),
   Interval (Interval),
   LowerBound (LowerBound),
   ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
+  ScriptHash,
   ScriptPurpose (Spending),
-  SerializedScript,
+  SerialisedScript,
   TxInfo (..),
   TxOutRef (TxOutRef),
   UpperBound (UpperBound),
-  ValidatorHash,
   singleton,
  )
 import qualified PlutusTx.AssocMap as AM (empty)
@@ -57,11 +57,11 @@ writeUPLC = writeFlatUPLC rolePayoutValidator
 -}
 
 -- | The serialised Marlowe role-payout validator.
-validatorBytes :: SerializedScript
+validatorBytes :: SerialisedScript
 validatorBytes = rolePayoutValidatorBytes
 
 -- | The hash for the Marlowe role-payout validator.
-validatorHash :: ValidatorHash
+validatorHash :: ScriptHash
 validatorHash = rolePayoutValidatorHash
 
 -- | The benchmark cases for the Marlowe role-payout validator.

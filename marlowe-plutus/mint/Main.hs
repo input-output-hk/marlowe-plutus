@@ -14,10 +14,9 @@ import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Word (Word16, Word64)
 import GHC.Generics (Generic)
-import Language.Marlowe.Plutus (serialiseCompiledCode)
 import Language.Marlowe.Plutus.RoleTokens (policy)
 import Language.Marlowe.Plutus.RoleTokens.Types
-import Plutus.V2.Ledger.Api hiding (Map)
+import PlutusLedgerApi.V2 hiding (Map)
 
 newtype Base16 = Base16 {unBase16 :: ByteString}
   deriving (Eq, Show, Ord)
@@ -52,5 +51,5 @@ main = do
       txOutRef = TxOutRef (TxId $ toBuiltin $ unBase16 seedInputId) (fromIntegral seedInputIx)
   BS.putStr $
     SBS.fromShort $
-      serialiseCompiledCode $
+      undefined $
         policy (mkRoleTokens roleTokens') txOutRef

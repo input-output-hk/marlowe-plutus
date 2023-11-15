@@ -51,8 +51,9 @@ import Language.Marlowe.Plutus (hashScript, serialiseCompiledCode)
 import Language.Marlowe.Scripts qualified as V1.Scripts
 import OracleFeed qualified as C3
 import Plutus.V1.Ledger.Address (scriptHashAddress)
-import Plutus.V1.Ledger.Value (adaSymbol, getValue, valueOf)
-import Plutus.V2.Ledger.Api (
+import Plutus.V2.Ledger.Contexts (findDatum, txSignedBy)
+import PlutusLedgerApi.V1.Value (adaSymbol, getValue, valueOf)
+import PlutusLedgerApi.V2 (
   OutputDatum (OutputDatum, OutputDatumHash),
   Redeemer (..),
   ScriptContext (..),
@@ -64,8 +65,7 @@ import Plutus.V2.Ledger.Api (
   ValidatorHash,
   fromBuiltinData,
  )
-import Plutus.V2.Ledger.Api qualified as PV2
-import Plutus.V2.Ledger.Contexts (findDatum, txSignedBy)
+import PlutusLedgerApi.V2 qualified as PV2
 import PlutusTx (CompiledCode)
 import PlutusTx qualified
 import PlutusTx.AssocMap qualified as AssocMap

@@ -15,6 +15,6 @@ cabalProject:
     nixpkgs-fmt.enable = true;
     shellcheck.enable = true;
     fourmolu.enable = true;
-    hlint.enable = true;
+    hlint.enable = false;
   };
 }

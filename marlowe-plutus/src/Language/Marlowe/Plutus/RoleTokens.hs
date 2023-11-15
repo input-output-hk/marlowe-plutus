@@ -25,12 +25,14 @@ import Language.Marlowe.Plutus.RoleTokens.Types (
   mkRoleTokens,
   mkRoleTokensHash,
  )
-import qualified Plutus.V2.Ledger.Api as PV2
-import qualified Plutus.V2.Ledger.Contexts as PV2
+import PlutusCore.Version (plcVersion100)
+import qualified PlutusLedgerApi.V2 as PV2
+import qualified PlutusLedgerApi.V2.Contexts as PV2
 import PlutusTx (CompiledCode)
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap as AssocMap
 import PlutusTx.Prelude
+import qualified Prelude as Haskell
 
 -- | One shot policy which encodes the `txOutRef` and tokens minting in its hash.
 -- In theory this currency can be reused across multiple Marlowe Contracts when the precise
@@ -85,11 +87,15 @@ missingFromOutputsValue currencySymbol PV2.ScriptContext{scriptContextTxInfo} = 
   all missingFromOutputValue txInfoOutputs
 
 policy :: RoleTokens -> PV2.TxOutRef -> CompiledCode (BuiltinData -> BuiltinData -> ())
-policy roleTokens txOutRef = do
+policy roleTokens txOutRef =
   let roleTokensHash = mkRoleTokensHash roleTokens
-  $$(PlutusTx.compile [||\rs seed -> wrapMintingPolicy (mkPolicy rs seed)||])
-    `PlutusTx.applyCode` PlutusTx.liftCode roleTokensHash
-    `PlutusTx.applyCode` PlutusTx.liftCode txOutRef
+      errorOrApplied =
+        $$(PlutusTx.compile [||\rs seed -> wrapMintingPolicy (mkPolicy rs seed)||])
+          `PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 roleTokensHash
+          >>= (`PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 txOutRef)
+   in case errorOrApplied of
+        Haskell.Left err -> Haskell.error $ "Application of arguments to minting validator failed." <> err
+        Haskell.Right applied -> applied
 
 -- Extracted from plutus-ledger
 

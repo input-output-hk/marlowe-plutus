@@ -11,7 +11,7 @@ module Benchmark.Marlowe.Types (
   makeBenchmark,
 ) where
 
-import Plutus.V2.Ledger.Api (Data, ExBudget, ScriptContext, ToData, toData)
+import PlutusLedgerApi.V2 (Data, ExBudget, ScriptContext, ToData, toData)
 
 -- | A benchmarking case.
 data Benchmark = Benchmark

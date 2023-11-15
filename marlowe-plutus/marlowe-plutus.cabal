@@ -146,6 +146,7 @@ test-suite marlowe-plutus
     , marlowe-cardano ==0.2.1.0
     , marlowe-plutus
     , marlowe-test ==0.2.1.0
+    , plutus-core
     , plutus-ledger-api
     , plutus-tx
     , QuickCheck
@@ -179,6 +180,7 @@ executable marlowe-plutus-tester
     , marlowe-cardano ==0.2.1.0
     , marlowe-plutus
     , marlowe-test ==0.2.1.0
+    , plutus-core
     , plutus-ledger-api
     , plutus-tx
     , QuickCheck

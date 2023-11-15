@@ -20,7 +20,7 @@ import qualified Data.ByteString as BS (writeFile)
 import qualified Data.ByteString.Base16 as B16 (encode)
 import Data.List (intercalate)
 import Language.Marlowe.Plutus (openRoleValidatorBytes, openRoleValidatorHash)
-import Plutus.V2.Ledger.Api (SerializedScript, ValidatorHash)
+import PlutusLedgerApi.V2 (ScriptHash, SerialisedScript)
 
 -- | Run the benchmarks and export information about the validators and the benchmarking results.
 main :: IO ()
@@ -85,9 +85,9 @@ printValidator
   -- ^ The name of the validator.
   -> FilePath
   -- ^ The base file path for exported files.
-  -> ValidatorHash
+  -> ScriptHash
   -- ^ The hash of the validator script.
-  -> SerializedScript
+  -> SerialisedScript
   -- ^ The serialised validator.
   -> IO ()
   -- ^ Action to print the information about the benchmarking, and write the files.
