@@ -481,7 +481,7 @@ data SubScriptContext = SubScriptContext
   { subScriptContextTxInfo :: SubTxInfo
   , subScriptContextPurpose :: ScriptPurpose
   }
-  deriving stock (Generic, Haskell.Eq, Haskell.Show)
+  deriving (Generic, Haskell.Eq, Haskell.Show)
 
 instance Eq SubScriptContext where
   {-# INLINEABLE (==) #-}
@@ -501,7 +501,7 @@ data SubTxInfo = SubTxInfo
   , subTxInfoData :: BuiltinData
   , subTxInfoId :: BuiltinData
   }
-  deriving stock (Generic, Haskell.Show, Haskell.Eq)
+  deriving (Generic, Haskell.Show, Haskell.Eq)
 
 instance Eq SubTxInfo where
   {-# INLINEABLE (==) #-}
@@ -616,6 +616,12 @@ mkOpenRoleValidator
     marloweRedeemerOk && threadTokenOk
 mkOpenRoleValidator _ _ _ _ = False
 
+PlutusTx.makeLift ''SubTxInfo
+PlutusTx.makeIsDataIndexed ''SubTxInfo [('SubTxInfo, 0)]
+
+PlutusTx.makeLift ''SubScriptContext
+PlutusTx.makeIsDataIndexed ''SubScriptContext [('SubScriptContext, 0)]
+
 -- Copied from marlowe-cardano. This is pretty standard way to minimize size of the typed validator:
 --  * Wrap validator function so it accepts raw `BuiltinData`.
 --  * Create a validator which is simply typed.
@@ -643,9 +649,3 @@ openRoleValidatorBytes = serialiseCompiledCode openRoleValidator
 
 openRoleValidatorHash :: ScriptHash
 openRoleValidatorHash = hashScript openRoleValidator
-
-PlutusTx.makeLift ''SubTxInfo
-PlutusTx.makeIsDataIndexed ''SubTxInfo [('SubTxInfo, 0)]
-
-PlutusTx.makeLift ''SubScriptContext
-PlutusTx.makeIsDataIndexed ''SubScriptContext [('SubScriptContext, 0)]
