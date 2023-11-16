@@ -51,8 +51,6 @@ common lang
     -Wincomplete-record-updates -Wredundant-constraints -Widentities
     -Werror
 
---  -O0 -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fno-strictness -fno-specialise -fno-spec-constr -fno-unbox-strict-fields -fno-unbox-small-strict-fields
-
 library
   import:          lang
   hs-source-dirs:  src
