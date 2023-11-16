@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -54,16 +53,15 @@ import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
 import PlutusTx.Prelude as PlutusTxPrelude (
   Bool (False),
   BuiltinData,
-  BuiltinString,
   Eq (..),
   Maybe (Just, Nothing),
   Ord ((>)),
   Semigroup ((<>)),
   check,
-  error,
   find,
-  id,
   isJust,
+  traceError,
+  traceIfFalse,
   ($),
   (&&),
  )
@@ -71,24 +69,6 @@ import PlutusTx.Prelude as PlutusTxPrelude (
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap as AssocMap
 import qualified Prelude as Haskell
-
--- Conditionally suppress traces, in order to save bytes.
-
-#ifdef TRACE_PLUTUS
-
-import PlutusTx.Prelude (traceError, traceIfFalse)
-
-#else
-
-{-# INLINABLE traceError #-}
-traceError :: BuiltinString -> a
-traceError _ = error ()
-
-{-# INLINABLE traceIfFalse #-}
-traceIfFalse :: BuiltinString -> a -> a
-traceIfFalse _ = id
-
-#endif
 
 -- By decoding only the part of the script context I was able
 -- to bring down the size of the validator from 4928 to 4540 bytes.

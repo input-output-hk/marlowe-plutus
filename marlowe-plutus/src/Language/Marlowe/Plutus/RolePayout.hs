@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -41,33 +40,12 @@ import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
 import PlutusTx.Prelude as PlutusTxPrelude (
   Bool,
   BuiltinData,
-  BuiltinString,
   check,
-  error,
-  id,
   ($),
  )
 
 import qualified PlutusLedgerApi.V1.Value as Val
 import qualified PlutusTx
-
--- Conditionally suppress traces, in order to save bytes.
-
-#ifdef TRACE_PLUTUS
-
-import PlutusTx.Prelude (traceError, traceIfFalse)
-
-#else
-
-{-# INLINABLE traceError #-}
-traceError :: BuiltinString -> a
-traceError _ = error ()
-
-{-# INLINABLE traceIfFalse #-}
-traceIfFalse :: BuiltinString -> a -> a
-traceIfFalse _ = id
-
-#endif
 
 {-# INLINEABLE rolePayoutValidator #-}
 

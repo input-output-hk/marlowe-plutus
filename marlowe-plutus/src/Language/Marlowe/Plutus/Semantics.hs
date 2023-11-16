@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -104,15 +103,15 @@ import PlutusTx.Prelude as PlutusTxPrelude (
   any,
   check,
   elem,
-  error,
   filter,
   find,
   foldMap,
-  id,
   null,
   otherwise,
   snd,
   toBuiltin,
+  traceError,
+  traceIfFalse,
   ($),
   (&&),
   (.),
@@ -128,24 +127,6 @@ import qualified PlutusLedgerApi.V2 as Ledger (Address (Address))
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap as AssocMap
 import qualified Prelude as Haskell
-
--- Conditionally suppress traces, in order to save bytes.
-
-#ifdef TRACE_PLUTUS
-
-import PlutusTx.Prelude (traceError, traceIfFalse)
-
-#else
-
-{-# INLINABLE traceError #-}
-traceError :: BuiltinString -> a
-traceError _ = error ()
-
-{-# INLINABLE traceIfFalse #-}
-traceIfFalse :: BuiltinString -> a -> a
-traceIfFalse _ = id
-
-#endif
 
 {-# INLINEABLE rolePayoutValidator #-}
 

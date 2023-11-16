@@ -78,6 +78,9 @@ library
   if flag(trace-plutus)
     cpp-options: -DTRACE_PLUTUS
 
+  else
+    ghc-options: -fplugin-opt PlutusTx.Plugin:remove-trace
+
 executable marlowe-validators
   import:         lang
   hs-source-dirs: app
@@ -212,7 +215,9 @@ executable marlowe-charli3
     , plutus-tx
     , plutus-tx-plugin
 
-  if flag(trace-plutus)
-    cpp-options: -DTRACE_PLUTUS
-
   ghc-options:    -threaded
+
+  if flag(trace-plutus)
+
+  else
+    ghc-options: -fplugin-opt PlutusTx.Plugin:remove-trace

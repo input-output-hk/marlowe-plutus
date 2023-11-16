@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
@@ -57,7 +56,7 @@ import PlutusLedgerApi.V2 (
 import PlutusLedgerApi.V2.Contexts (findDatum, txSignedBy)
 import PlutusTx (CompiledCode)
 
-import PlutusTx.Prelude as PlutusTxPrelude hiding (traceError, traceIfFalse)
+import PlutusTx.Prelude as PlutusTxPrelude
 
 import qualified Language.Marlowe.Core.V1.Semantics.Types as V1
 import qualified Language.Marlowe.Scripts.Types as V1.Scripts
@@ -66,22 +65,6 @@ import qualified PlutusLedgerApi.V2 as PV2
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap as AssocMap
 import qualified Prelude as Haskell (Either (..), error, show)
-
-#ifdef TRACE_PLUTUS
-
-import PlutusTx.Prelude (traceError, traceIfFalse)
-
-#else
-
-{-# INLINABLE traceError #-}
-traceError :: BuiltinString -> a
-traceError _ = error ()
-
-{-# INLINABLE traceIfFalse #-}
-traceIfFalse :: BuiltinString -> a -> a
-traceIfFalse _ = id
-
-#endif
 
 -- | Create the Plutus validator for the Charli3 bridge.
 mkValidator

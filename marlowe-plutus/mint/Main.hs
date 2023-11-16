@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
+-- | Create a role-token minting script.
 module Main (
   -- * Entry point
   main,
