@@ -10,9 +10,8 @@ import Benchmark.Marlowe (tabulateResults, writeFlatUPLCs)
 import Cardano.Binary (serialize')
 import Data.List (intercalate)
 import Language.Marlowe.Plutus.OpenRoles (openRoleValidatorBytes, openRoleValidatorHash)
-import Paths_marlowe_plutus (getDataDir)
 import PlutusLedgerApi.V2 (ScriptHash, SerialisedScript)
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, getCurrentDirectory)
 import System.FilePath (takeDirectory, takeFileName, (</>))
 
 import qualified Benchmark.Marlowe.RolePayout as RolePayout (
@@ -34,7 +33,7 @@ import qualified Data.ByteString.Base16 as B16 (encode)
 main :: IO ()
 main =
   do
-    dir <- getDataDir
+    dir <- getCurrentDirectory
     let out = dir </> "out"
 
     -- Print the semantics validator, and write the plutus file.
@@ -99,7 +98,7 @@ printValidator
 printValidator name file hash validator =
   do
     let file' = takeDirectory file </> "out" </> takeFileName file
-    createDirectoryIfMissing True $ takeDirectory file
+    createDirectoryIfMissing True $ takeDirectory file'
     putStrLn ""
     putStrLn $ name <> ":"
     putStrLn $ "  Validator hash: " <> show hash

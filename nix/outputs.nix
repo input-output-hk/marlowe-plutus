@@ -12,7 +12,7 @@ in
       mkdir -p $out
       cd $out
       ${inputs.self.packages.marlowe-validators}/bin/marlowe-validators
-      rm *.tsv
+      rm -rf out/
     '';
   }
 ]
