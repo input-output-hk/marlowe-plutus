@@ -6,14 +6,7 @@ module Main (
   main,
 ) where
 
-import qualified Cardano.Api as C
-import qualified Cardano.Api.Shelley as C
-import qualified Cardano.Crypto.Hash as Hash
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Short as SBS
 import Language.Marlowe.PlutusSpec (ScriptsInfo (..), specForScript)
-import qualified PlutusLedgerApi.V1.Address as P (scriptHashAddress)
-import qualified PlutusLedgerApi.V2 as P
 import System.Environment (getArgs)
 import Test.Hspec.Core.Runner (
   defaultConfig,
@@ -21,6 +14,14 @@ import Test.Hspec.Core.Runner (
   readConfig,
   runSpec,
  )
+
+import qualified Cardano.Api as C
+import qualified Cardano.Api.Shelley as C
+import qualified Cardano.Crypto.Hash as Hash
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Short as SBS
+import qualified PlutusLedgerApi.V1.Address as P (scriptHashAddress)
+import qualified PlutusLedgerApi.V2 as P
 
 main :: IO ()
 main =

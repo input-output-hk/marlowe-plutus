@@ -1,4 +1,3 @@
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Run benchmarks for Marlowe validators.
@@ -8,26 +7,27 @@ module Main (
 ) where
 
 import Benchmark.Marlowe (tabulateResults, writeFlatUPLCs)
-import Benchmark.Marlowe.RolePayout qualified as RolePayout (
-  benchmarks,
-  validatorBytes,
-  validatorHash,
-  writeUPLC,
- )
-import Benchmark.Marlowe.Semantics qualified as Semantics (
-  benchmarks,
-  validatorBytes,
-  validatorHash,
-  writeUPLC,
- )
 import Cardano.Binary (serialize')
-import Data.ByteString qualified as BS (writeFile)
-import Data.ByteString.Base16 qualified as B16 (encode)
 import Data.List (intercalate)
 import Language.Marlowe.Plutus.OpenRoles (openRoleValidatorBytes, openRoleValidatorHash)
 import Paths_marlowe_plutus (getDataDir)
 import PlutusLedgerApi.V2 (ScriptHash, SerialisedScript)
 import System.FilePath ((</>))
+
+import qualified Benchmark.Marlowe.RolePayout as RolePayout (
+  benchmarks,
+  validatorBytes,
+  validatorHash,
+  writeUPLC,
+ )
+import qualified Benchmark.Marlowe.Semantics as Semantics (
+  benchmarks,
+  validatorBytes,
+  validatorHash,
+  writeUPLC,
+ )
+import qualified Data.ByteString as BS (writeFile)
+import qualified Data.ByteString.Base16 as B16 (encode)
 
 -- | Run the benchmarks and export information about the validators and the benchmarking results.
 main :: IO ()
@@ -45,9 +45,8 @@ main =
       $ tabulateResults "Semantics" Semantics.validatorHash Semantics.validatorBytes benchmarks
 
     -- Write the flat UPLC files for the semantics benchmarks.
-    writeFlatUPLCs Semantics.writeUPLC benchmarks
-      . (</> "semantics")
-      =<< getDataDir
+    writeFlatUPLCs Semantics.writeUPLC benchmarks $
+      dir </> "semantics"
 
     -- Print the semantics validator, and write the plutus file.
     printValidator
@@ -66,9 +65,8 @@ main =
       $ tabulateResults "Role Payout" RolePayout.validatorHash RolePayout.validatorBytes benchmarks'
 
     -- Write the flat UPLC files for the role-payout benchmarks.
-    writeFlatUPLCs RolePayout.writeUPLC benchmarks'
-      . (</> "rolepayout")
-      =<< getDataDir
+    writeFlatUPLCs RolePayout.writeUPLC benchmarks' $
+      dir </> "rolepayout"
 
     -- Print the role-payout validator, and write the plutus file.
     printValidator

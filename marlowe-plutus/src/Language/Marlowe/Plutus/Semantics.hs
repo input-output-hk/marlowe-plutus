@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -24,15 +23,8 @@ module Language.Marlowe.Plutus.Semantics (
   mkMarloweValidator,
 ) where
 
-import Cardano.Crypto.Hash qualified as Hash
-import Data.ByteString qualified as BS
-import Data.ByteString.Short qualified as SBS
-import Language.Marlowe.Core.V1.Semantics as Semantics
-import Language.Marlowe.Core.V1.Semantics.Types as Semantics
 import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
 import PlutusCore.Version (plcVersion100)
-import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
-import PlutusLedgerApi.V1.Value qualified as Val
 import PlutusLedgerApi.V2 (
   Credential (..),
   Datum (Datum),
@@ -52,15 +44,90 @@ import PlutusLedgerApi.V2 (
   UpperBound (..),
   serialiseCompiledCode,
  )
-import PlutusLedgerApi.V2 qualified as Ledger (Address (Address))
 import PlutusLedgerApi.V2.Contexts (findDatum, findDatumHash, txSignedBy, valueSpent)
 import PlutusLedgerApi.V2.Tx (OutputDatum (OutputDatumHash), TxOut (TxOut, txOutAddress, txOutDatum, txOutValue))
 import PlutusTx (CompiledCode)
-import PlutusTx qualified
-import PlutusTx.AssocMap qualified as AssocMap
 import PlutusTx.Plugin ()
-import PlutusTx.Prelude as PlutusTxPrelude hiding (traceError, traceIfFalse)
-import Prelude qualified as Haskell
+
+import Language.Marlowe.Core.V1.Semantics as Semantics (
+  MarloweData (..),
+  MarloweParams (MarloweParams, rolesCurrency),
+  Payment (..),
+  TransactionError (
+    TEAmbiguousTimeIntervalError,
+    TEApplyNoMatchError,
+    TEHashMismatch,
+    TEIntervalError,
+    TEUselessTransaction
+  ),
+  TransactionInput (TransactionInput, txInputs, txInterval),
+  TransactionOutput (
+    Error,
+    TransactionOutput,
+    txOutContract,
+    txOutPayments,
+    txOutState
+  ),
+  computeTransaction,
+  totalBalance,
+ )
+import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
+  ChoiceId (ChoiceId),
+  Contract (Close),
+  CurrencySymbol,
+  Input (..),
+  InputContent (..),
+  IntervalError (IntervalInPastError, InvalidInterval),
+  Party (..),
+  Payee (Account, Party),
+  State (..),
+  Token (Token),
+  TokenName,
+  getInputContent,
+ )
+import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
+import PlutusTx.Prelude as PlutusTxPrelude (
+  AdditiveGroup ((-)),
+  AdditiveMonoid (zero),
+  AdditiveSemigroup ((+)),
+  Bool (..),
+  BuiltinData,
+  BuiltinString,
+  Enum (fromEnum),
+  Eq (..),
+  Functor (fmap),
+  Integer,
+  Maybe (..),
+  Ord ((>)),
+  Semigroup ((<>)),
+  all,
+  any,
+  check,
+  elem,
+  error,
+  filter,
+  find,
+  foldMap,
+  id,
+  null,
+  otherwise,
+  snd,
+  toBuiltin,
+  ($),
+  (&&),
+  (.),
+  (/=),
+  (||),
+ )
+
+import qualified Cardano.Crypto.Hash as Hash
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Short as SBS
+import qualified PlutusLedgerApi.V1.Value as Val
+import qualified PlutusLedgerApi.V2 as Ledger (Address (Address))
+import qualified PlutusTx
+import qualified PlutusTx.AssocMap as AssocMap
+import qualified Prelude as Haskell
 
 -- Conditionally suppress traces, in order to save bytes.
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -45,7 +44,8 @@ import PlutusLedgerApi.V2 (
   UpperBound (UpperBound),
   singleton,
  )
-import PlutusTx.AssocMap qualified as AM (empty)
+
+import qualified PlutusTx.AssocMap as AM (empty)
 
 -- | Write a flat UPLC file for a benchmark.
 writeUPLC

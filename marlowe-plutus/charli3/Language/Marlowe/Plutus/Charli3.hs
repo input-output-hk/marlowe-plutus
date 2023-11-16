@@ -7,7 +7,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -37,11 +36,8 @@ module Language.Marlowe.Plutus.Charli3 (
   validatorHash,
 ) where
 
-import Language.Marlowe.Core.V1.Semantics.Types qualified as V1
 import Language.Marlowe.Plutus (hashScript)
 import Language.Marlowe.Plutus.Semantics (marloweValidatorHash)
-import Language.Marlowe.Scripts.Types qualified as V1.Scripts
-import OracleFeed qualified as C3
 import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V1.Address (scriptHashAddress)
 import PlutusLedgerApi.V1.Value (adaSymbol, getValue, valueOf)
@@ -58,13 +54,18 @@ import PlutusLedgerApi.V2 (
   fromBuiltinData,
   serialiseCompiledCode,
  )
-import PlutusLedgerApi.V2 qualified as PV2
 import PlutusLedgerApi.V2.Contexts (findDatum, txSignedBy)
 import PlutusTx (CompiledCode)
-import PlutusTx qualified
-import PlutusTx.AssocMap qualified as AssocMap
+
 import PlutusTx.Prelude as PlutusTxPrelude hiding (traceError, traceIfFalse)
-import Prelude qualified as Haskell (Either (..), error, show)
+
+import qualified Language.Marlowe.Core.V1.Semantics.Types as V1
+import qualified Language.Marlowe.Scripts.Types as V1.Scripts
+import qualified OracleFeed as C3
+import qualified PlutusLedgerApi.V2 as PV2
+import qualified PlutusTx
+import qualified PlutusTx.AssocMap as AssocMap
+import qualified Prelude as Haskell (Either (..), error, show)
 
 #ifdef TRACE_PLUTUS
 

@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- | Create and export a Charli3 oracle.
 module Main (
+  -- * Entry point.
   main,
 ) where
 
@@ -50,7 +52,7 @@ commandParser =
             <> O.header "marlowe-charli3 : run a Charli3 oracle bridge for Marlowe contracts"
         )
 
---
+-- | Create and export a Charli3 oracle.
 main :: IO ()
 main =
   do

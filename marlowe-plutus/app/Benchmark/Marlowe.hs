@@ -1,4 +1,3 @@
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -18,19 +17,16 @@ module Benchmark.Marlowe (
 ) where
 
 import Benchmark.Marlowe.Types (Benchmark (..))
-import Benchmark.Marlowe.Types qualified as M
 import Codec.Serialise (deserialise)
 import Control.Monad (void)
 import Control.Monad.Except (runExcept)
 import Control.Monad.Writer (runWriterT)
 import Data.Bifunctor (bimap)
-import Data.ByteString.Lazy qualified as LBS (readFile)
 import Data.Either.Extras (unsafeFromEither)
 import Data.List (isSuffixOf)
 import Language.Marlowe.Core.V1.Semantics (MarloweData)
 import Language.Marlowe.Scripts.Types (MarloweInput)
 import Paths_marlowe_plutus (getDataDir)
-import PlutusCore.Default qualified as PLC
 import PlutusCore.Executable.AstIO (fromNamedDeBruijnUPLC)
 import PlutusCore.Executable.Common (writeProgram)
 import PlutusCore.Executable.Types (
@@ -41,14 +37,39 @@ import PlutusCore.Executable.Types (
   UplcProg,
  )
 import PlutusCore.MkPlc (mkConstant)
-import PlutusLedgerApi.Common.Versions
-import PlutusLedgerApi.V2
+import PlutusLedgerApi.Common.Versions (
+  Version (Version),
+  futurePV,
+ )
+import PlutusLedgerApi.V2 (
+  Data (Constr, I),
+  EvaluationContext,
+  EvaluationError,
+  ExBudget (..),
+  ExCPU (ExCPU),
+  ExMemory (ExMemory),
+  LogOutput,
+  ScriptContext (scriptContextTxInfo),
+  ScriptHash,
+  SerialisedScript,
+  TxInfo (txInfoId),
+  VerboseMode (Verbose),
+  deserialiseScript,
+  evaluateScriptCounting,
+  fromData,
+  mkEvaluationContext,
+  toData,
+ )
 import PlutusPrelude ((.*))
 import PlutusTx.Code (CompiledCode, getPlc)
 import System.Directory (listDirectory)
 import System.FilePath ((<.>), (</>))
 import UntypedPlutusCore (NamedDeBruijn, Program (..), applyProgram)
-import UntypedPlutusCore.Core.Type qualified as UPLC
+
+import qualified Benchmark.Marlowe.Types as M
+import qualified Data.ByteString.Lazy as LBS (readFile)
+import qualified PlutusCore.Default as PLC
+import qualified UntypedPlutusCore.Core.Type as UPLC
 
 -- | Turn a `Benchmark.Marlowe.Types.Benchmark` to a UPLC program.
 benchmarkToUPLC

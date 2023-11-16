@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -24,12 +23,10 @@ module Language.Marlowe.Plutus.OpenRoles (
 ) where
 
 import GHC.Generics (Generic)
-import Language.Marlowe.Core.V1.Semantics.Types as Semantics
 import Language.Marlowe.Plutus (hashScript)
 import Language.Marlowe.Plutus.Semantics (marloweValidatorHash)
 import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
 import PlutusCore.Version (plcVersion100)
-import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
 import PlutusLedgerApi.V1.Value (valueOf)
 import PlutusLedgerApi.V2 (
   FromData (..),
@@ -45,11 +42,35 @@ import PlutusLedgerApi.V2 (
  )
 import PlutusLedgerApi.V2.Tx (TxOut (TxOut, txOutAddress, txOutValue))
 import PlutusTx (CompiledCode)
-import PlutusTx qualified
-import PlutusTx.AssocMap qualified as AssocMap
 import PlutusTx.Plugin ()
-import PlutusTx.Prelude as PlutusTxPrelude hiding (traceError, traceIfFalse)
-import Prelude qualified as Haskell
+
+import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
+  ChoiceId (ChoiceId),
+  InputContent (IChoice, IDeposit),
+  Party (Role),
+  TokenName,
+ )
+import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
+import PlutusTx.Prelude as PlutusTxPrelude (
+  Bool (False),
+  BuiltinData,
+  BuiltinString,
+  Eq (..),
+  Maybe (Just, Nothing),
+  Ord ((>)),
+  Semigroup ((<>)),
+  check,
+  error,
+  find,
+  id,
+  isJust,
+  ($),
+  (&&),
+ )
+
+import qualified PlutusTx
+import qualified PlutusTx.AssocMap as AssocMap
+import qualified Prelude as Haskell
 
 -- Conditionally suppress traces, in order to save bytes.
 

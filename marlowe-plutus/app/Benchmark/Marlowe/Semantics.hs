@@ -1,4 +1,3 @@
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -14,7 +13,6 @@ module Benchmark.Marlowe.Semantics (
 ) where
 
 import Benchmark.Marlowe (readBenchmarks, writeFlatUPLC)
-import Benchmark.Marlowe.RolePayout qualified as RolePayout (validatorHash)
 import Benchmark.Marlowe.Types (Benchmark (..), makeBenchmark)
 import Benchmark.Marlowe.Util (
   lovelace,
@@ -60,7 +58,9 @@ import PlutusLedgerApi.V2 (
   UpperBound (UpperBound),
   singleton,
  )
-import PlutusTx.AssocMap qualified as AM (empty, unionWith)
+
+import qualified Benchmark.Marlowe.RolePayout as RolePayout (validatorHash)
+import qualified PlutusTx.AssocMap as AM (empty, unionWith)
 
 -- | The serialised Marlowe semantics validator.
 validatorBytes :: SerialisedScript

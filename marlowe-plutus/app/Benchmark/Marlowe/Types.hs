@@ -1,11 +1,3 @@
-{-# LANGUAGE DerivingStrategies #-}
-
--- Module      :  $Headers
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
-
 -- | Types for benchmarking Marlowe validators.
 module Benchmark.Marlowe.Types (
   -- * Benchmarking
@@ -27,7 +19,7 @@ data Benchmark = Benchmark
   -- ^ The previously measured execution costs in production, which uses the Plutus version on
   -- August 18 2022 (commit 6ed578b592f46afc0e77f4d19e5955a6eb439ba4).
   }
-  deriving stock (Show)
+  deriving (Show)
 
 -- | Construct a benchmarking case.
 makeBenchmark
@@ -38,4 +30,4 @@ makeBenchmark
   -> ScriptContext
   -> Maybe ExBudget
   -> Benchmark
-makeBenchmark datum redeemer = Benchmark (toData datum) (toData redeemer)
+makeBenchmark = (. toData) . Benchmark . toData

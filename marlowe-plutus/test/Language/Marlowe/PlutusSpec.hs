@@ -26,8 +26,6 @@ import Control.Monad.Trans.State (StateT, execStateT)
 import Control.Monad.Trans.Writer (runWriter, runWriterT)
 import Data.Aeson (eitherDecodeFileStrict)
 import Data.Bifunctor (Bifunctor (..), bimap, second)
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Short as SBS
 import Data.Default (Default (..))
 import Data.List (isSuffixOf, nub)
 import Data.Maybe (fromJust, maybeToList)
@@ -44,7 +42,6 @@ import Language.Marlowe.Core.V1.Semantics (
   paymentMoney,
   totalBalance,
  )
-import qualified Language.Marlowe.Core.V1.Semantics as M (MarloweData (marloweParams))
 import Language.Marlowe.Core.V1.Semantics.Types (
   ChoiceId (ChoiceId),
   Contract (..),
@@ -56,21 +53,12 @@ import Language.Marlowe.Core.V1.Semantics.Types (
   Token (Token),
   getInputContent,
  )
-import qualified Language.Marlowe.Core.V1.Semantics.Types as M (Party (Address), State (..))
-import qualified Language.Marlowe.Plutus.RolePayout as Official (
-  rolePayoutValidatorBytes,
-  rolePayoutValidatorHash,
- )
-import qualified Language.Marlowe.Plutus.Semantics as Official (
-  marloweValidatorBytes,
-  marloweValidatorHash,
- )
 import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
 import Paths_marlowe_plutus (getDataDir)
+import PlutusLedgerApi.Common.Versions (futurePV)
 import PlutusLedgerApi.V1 (BuiltinByteString, Data, toBuiltin)
 import PlutusLedgerApi.V1.Address (scriptHashAddress, toPubKeyHash)
 import PlutusLedgerApi.V1.Value (flattenValue, gt, valueOf)
-import qualified PlutusLedgerApi.V1.Value as V (adaSymbol, adaToken, singleton)
 import PlutusLedgerApi.V2 (
   Address (Address),
   Credential (..),
@@ -86,7 +74,6 @@ import PlutusLedgerApi.V2 (
   Interval (Interval),
   LogOutput,
   LowerBound (LowerBound),
-  MajorProtocolVersion (..),
   OutputDatum (..),
   PubKeyHash,
   Redeemer (..),
@@ -111,7 +98,6 @@ import PlutusLedgerApi.V2 (
   singleton,
   toData,
  )
-import qualified PlutusTx.AssocMap as AM (Map, fromList, insert, keys, null, toList)
 import PlutusTx.These (These (..))
 import Spec.Marlowe.Plutus.Arbitrary ()
 import Spec.Marlowe.Plutus.Lens ((<><~))
@@ -135,16 +121,46 @@ import Spec.Marlowe.Plutus.Types (
   role,
   scriptPurpose,
  )
-import qualified Spec.Marlowe.Plutus.Types as PC
 import Spec.Marlowe.Reference (ReferencePath (..), arbitraryReferenceTransaction)
 import Spec.Marlowe.Semantics.Arbitrary (arbitraryGoldenTransaction, arbitraryPositiveInteger)
 import Spec.Marlowe.Semantics.Golden (GoldenTransaction)
 import System.Directory (listDirectory)
 import System.FilePath ((<.>), (</>))
 import System.IO.Unsafe (unsafePerformIO)
-import Test.Hspec
+import Test.Hspec (Spec, describe, it, runIO, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck
+import Test.QuickCheck (
+  Arbitrary (arbitrary),
+  Gen,
+  Property,
+  Testable (property),
+  chooseInteger,
+  elements,
+  forAll,
+  frequency,
+  listOf,
+  listOf1,
+  oneof,
+  shuffle,
+  suchThat,
+  (===),
+ )
+
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Short as SBS
+import qualified Language.Marlowe.Core.V1.Semantics as M (MarloweData (marloweParams))
+import qualified Language.Marlowe.Core.V1.Semantics.Types as M (Party (Address), State (..))
+import qualified Language.Marlowe.Plutus.RolePayout as Official (
+  rolePayoutValidatorBytes,
+  rolePayoutValidatorHash,
+ )
+import qualified Language.Marlowe.Plutus.Semantics as Official (
+  marloweValidatorBytes,
+  marloweValidatorHash,
+ )
+import qualified PlutusLedgerApi.V1.Value as V (adaSymbol, adaToken, singleton)
+import qualified PlutusTx.AssocMap as AM (Map, fromList, insert, keys, null, toList)
+import qualified Spec.Marlowe.Plutus.Types as PC
 
 checkPlutusLog :: Bool
 maxMarloweValidatorSize :: Int
@@ -1226,12 +1242,12 @@ evaluateSemantics
   -> These String LogOutput
   -- ^ The result.
 evaluateSemantics ScriptsInfo{semanticsValidatorBytes} d r c =
-  case deserialiseScript protocolVersion semanticsValidatorBytes of
+  case deserialiseScript futurePV semanticsValidatorBytes of
     Left message -> This $ show message
     Right validator ->
       case evaluationContext of
         Left message -> This message
-        Right ec -> case evaluateScriptCounting protocolVersion Verbose ec validator [d, r, c] of
+        Right ec -> case evaluateScriptCounting futurePV Verbose ec validator [d, r, c] of
           (logOutput, Right ex@ExBudget{..}) ->
             ( if dumpBenchmarks
                 then unsafeDumpBenchmark "semantics" d r c ex
@@ -1255,12 +1271,12 @@ evaluatePayout
   -> These String LogOutput
   -- ^ The result.
 evaluatePayout ScriptsInfo{payoutValidatorBytes} d r c =
-  case deserialiseScript protocolVersion payoutValidatorBytes of
+  case deserialiseScript futurePV payoutValidatorBytes of
     Left message -> This $ show message
     Right validator ->
       case evaluationContext of
         Left message -> This message
-        Right ec -> case evaluateScriptCounting protocolVersion Verbose ec validator [d, r, c] of
+        Right ec -> case evaluateScriptCounting futurePV Verbose ec validator [d, r, c] of
           (logOutput, Right ex) ->
             ( if dumpBenchmarks
                 then unsafeDumpBenchmark "rolepayout" d r c ex
@@ -1272,10 +1288,6 @@ evaluatePayout ScriptsInfo{payoutValidatorBytes} d r c =
 -- | Build an evaluation context.
 evaluationContext :: Either String EvaluationContext
 evaluationContext = bimap show fst . runExcept . runWriterT . mkEvaluationContext $ snd <$> costModel
-
--- | A protocol version.
-protocolVersion :: MajorProtocolVersion
-protocolVersion = MajorProtocolVersion 8
 
 -- | A default cost model for Plutus.
 costModel :: [(String, Integer)]

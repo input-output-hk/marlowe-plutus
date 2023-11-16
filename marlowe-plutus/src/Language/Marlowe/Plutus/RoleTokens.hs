@@ -11,6 +11,7 @@
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:defer-errors #-}
 
 module Language.Marlowe.Plutus.RoleTokens (
+  -- * Minting
   MintAction (..),
   RoleTokens,
   mkRoleTokens,
@@ -26,12 +27,27 @@ import Language.Marlowe.Plutus.RoleTokens.Types (
   mkRoleTokensHash,
  )
 import PlutusCore.Version (plcVersion100)
+import PlutusTx (CompiledCode)
+import PlutusTx.Prelude (
+  Bool,
+  BuiltinData,
+  Eq ((==)),
+  Semigroup ((<>)),
+  all,
+  check,
+  fromMaybe,
+  isNothing,
+  traceIfFalse,
+  ($),
+  (&&),
+  (.),
+  (>>=),
+ )
+
 import qualified PlutusLedgerApi.V2 as PV2
 import qualified PlutusLedgerApi.V2.Contexts as PV2
-import PlutusTx (CompiledCode)
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap as AssocMap
-import PlutusTx.Prelude
 import qualified Prelude as Haskell
 
 -- | One shot policy which encodes the `txOutRef` and tokens minting in its hash.
@@ -102,9 +118,10 @@ policy roleTokens txOutRef =
 -- | Signature of an untyped minting policy script.
 type MintingPolicyFn = BuiltinData -> BuiltinData -> ()
 
+{-# INLINEABLE wrapMintingPolicy #-}
+
 -- | Turns typed function into a minting policy which can be used
 -- on the chain.
-{-# INLINEABLE wrapMintingPolicy #-}
 wrapMintingPolicy
   :: (PV2.UnsafeFromData redeemer, PV2.UnsafeFromData context)
   => (redeemer -> context -> Bool)

@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -15,15 +14,17 @@ module Language.Marlowe.Plutus (
   hashScript,
 ) where
 
-import Cardano.Crypto.Hash qualified as Hash
-import Data.ByteString qualified as BS
-import Data.ByteString.Short qualified as SBS
 import PlutusLedgerApi.V2 (
   ScriptHash (..),
   serialiseCompiledCode,
  )
 import PlutusTx (CompiledCode)
+
 import PlutusTx.Prelude as PlutusTxPrelude
+
+import qualified Cardano.Crypto.Hash as Hash
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Short as SBS
 
 -- | Compute the hash of a script.
 hashScript :: CompiledCode fn -> ScriptHash

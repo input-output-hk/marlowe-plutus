@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -23,9 +22,7 @@ module Language.Marlowe.Plutus.RolePayout (
   rolePayoutValidatorHash,
 ) where
 
-import Language.Marlowe.Core.V1.Semantics.Types as Semantics
 import Language.Marlowe.Plutus (hashScript)
-import PlutusLedgerApi.V1.Value qualified as Val
 import PlutusLedgerApi.V2 (
   ScriptContext (scriptContextTxInfo),
   ScriptHash (..),
@@ -35,9 +32,24 @@ import PlutusLedgerApi.V2 (
  )
 import PlutusLedgerApi.V2.Contexts (valueSpent)
 import PlutusTx (CompiledCode)
-import PlutusTx qualified
 import PlutusTx.Plugin ()
-import PlutusTx.Prelude as PlutusTxPrelude hiding (traceError, traceIfFalse)
+
+import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
+  CurrencySymbol,
+  TokenName,
+ )
+import PlutusTx.Prelude as PlutusTxPrelude (
+  Bool,
+  BuiltinData,
+  BuiltinString,
+  check,
+  error,
+  id,
+  ($),
+ )
+
+import qualified PlutusLedgerApi.V1.Value as Val
+import qualified PlutusTx
 
 -- Conditionally suppress traces, in order to save bytes.
 

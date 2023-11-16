@@ -1,4 +1,3 @@
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Utility functions for creating script contexts.
@@ -14,7 +13,6 @@ module Benchmark.Marlowe.Util (
 ) where
 
 import Codec.Serialise (deserialise)
-import Data.ByteString.Lazy qualified as LBS (fromStrict)
 import PlutusLedgerApi.V2 (
   Address (Address),
   BuiltinData,
@@ -39,7 +37,9 @@ import PlutusLedgerApi.V2 (
   fromBuiltin,
   singleton,
  )
-import PlutusTx.AssocMap qualified as AM (Map, singleton)
+
+import qualified Data.ByteString.Lazy as LBS (fromStrict)
+import qualified PlutusTx.AssocMap as AM (Map, singleton)
 
 -- | Integer to lovelace.
 lovelace
