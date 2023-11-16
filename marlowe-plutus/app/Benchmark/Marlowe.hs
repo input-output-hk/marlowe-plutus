@@ -62,7 +62,7 @@ import PlutusLedgerApi.V2 (
  )
 import PlutusPrelude ((.*))
 import PlutusTx.Code (CompiledCode, getPlc)
-import System.Directory (listDirectory)
+import System.Directory (createDirectoryIfMissing, listDirectory)
 import System.FilePath ((<.>), (</>))
 import UntypedPlutusCore (NamedDeBruijn, Program (..), applyProgram)
 
@@ -190,11 +190,13 @@ writeFlatUPLCs
   -> FilePath
   -> IO ()
 writeFlatUPLCs writer benchmarks folder =
-  sequence_
-    [ writer (folder </> show txId <> "-uplc" <.> "flat") benchmark
-    | benchmark@Benchmark{..} <- benchmarks
-    , let txId = txInfoId $ scriptContextTxInfo bScriptContext
-    ]
+  do
+    createDirectoryIfMissing True folder
+    sequence_
+      [ writer (folder </> show txId <> "-uplc" <.> "flat") benchmark
+      | benchmark@Benchmark{..} <- benchmarks
+      , let txId = txInfoId $ scriptContextTxInfo bScriptContext
+      ]
 
 -- | Write a flat UPLC file for a benchmark.
 writeFlatUPLC

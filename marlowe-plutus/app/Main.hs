@@ -12,7 +12,8 @@ import Data.List (intercalate)
 import Language.Marlowe.Plutus.OpenRoles (openRoleValidatorBytes, openRoleValidatorHash)
 import Paths_marlowe_plutus (getDataDir)
 import PlutusLedgerApi.V2 (ScriptHash, SerialisedScript)
-import System.FilePath ((</>))
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath (takeDirectory, takeFileName, (</>))
 
 import qualified Benchmark.Marlowe.RolePayout as RolePayout (
   benchmarks,
@@ -34,53 +35,54 @@ main :: IO ()
 main =
   do
     dir <- getDataDir
-
-    -- Read the semantics benchmarks.
-    benchmarks <- either error id <$> Semantics.benchmarks
-
-    -- Write the tabulation of semantics benchmark results.
-    writeFile "marlowe-semantics.tsv"
-      . unlines
-      . fmap (intercalate "\t")
-      $ tabulateResults "Semantics" Semantics.validatorHash Semantics.validatorBytes benchmarks
-
-    -- Write the flat UPLC files for the semantics benchmarks.
-    writeFlatUPLCs Semantics.writeUPLC benchmarks $
-      dir </> "semantics"
+    let out = dir </> "out"
 
     -- Print the semantics validator, and write the plutus file.
     printValidator
       "Semantics"
-      (dir <> "marlowe-semantics")
+      (dir </> "marlowe-semantics")
       Semantics.validatorHash
       Semantics.validatorBytes
-
-    -- Read the role-payout benchmarks.
-    benchmarks' <- either error id <$> RolePayout.benchmarks
-
-    -- Write the tabulation of role-payout benchmark results.
-    writeFile "marlowe-rolepayout.tsv"
-      . unlines
-      . fmap (intercalate "\t")
-      $ tabulateResults "Role Payout" RolePayout.validatorHash RolePayout.validatorBytes benchmarks'
-
-    -- Write the flat UPLC files for the role-payout benchmarks.
-    writeFlatUPLCs RolePayout.writeUPLC benchmarks' $
-      dir </> "rolepayout"
 
     -- Print the role-payout validator, and write the plutus file.
     printValidator
       "Role payout"
-      "marlowe-rolepayout"
+      (dir </> "marlowe-rolepayout")
       RolePayout.validatorHash
       RolePayout.validatorBytes
 
     -- Print the semantics validator, and write the plutus file.
     printValidator
       "Open roles"
-      (dir <> "marlowe-openroles")
+      (dir </> "marlowe-openroles")
       openRoleValidatorHash
       openRoleValidatorBytes
+
+    -- Read the semantics benchmarks.
+    benchmarks <- either error id <$> Semantics.benchmarks
+
+    -- Write the tabulation of semantics benchmark results.
+    writeFile (out </> "marlowe-semantics.tsv")
+      . unlines
+      . fmap (intercalate "\t")
+      $ tabulateResults "Semantics" Semantics.validatorHash Semantics.validatorBytes benchmarks
+
+    -- Write the flat UPLC files for the semantics benchmarks.
+    writeFlatUPLCs Semantics.writeUPLC benchmarks $
+      out </> "semantics"
+
+    -- Read the role-payout benchmarks.
+    benchmarks' <- either error id <$> RolePayout.benchmarks
+
+    -- Write the tabulation of role-payout benchmark results.
+    writeFile (out </> "marlowe-rolepayout.tsv")
+      . unlines
+      . fmap (intercalate "\t")
+      $ tabulateResults "Role Payout" RolePayout.validatorHash RolePayout.validatorBytes benchmarks'
+
+    -- Write the flat UPLC files for the role-payout benchmarks.
+    writeFlatUPLCs RolePayout.writeUPLC benchmarks' $
+      out </> "rolepayout"
 
 -- | Print information about a validator.
 printValidator
@@ -96,12 +98,14 @@ printValidator
   -- ^ Action to print the information about the benchmarking, and write the files.
 printValidator name file hash validator =
   do
+    let file' = takeDirectory file </> "out" </> takeFileName file
+    createDirectoryIfMissing True $ takeDirectory file
+    putStrLn ""
     putStrLn $ name <> ":"
     putStrLn $ "  Validator hash: " <> show hash
     putStrLn $ "  Validator file: " <> file <> ".plutus"
-    putStrLn $ "  Measurements file: " <> file <> ".tsv"
+    putStrLn $ "  Measurements file: " <> file' <> ".tsv"
     BS.writeFile (file <> ".plutus") $
       "{\"type\": \"PlutusScriptV2\", \"description\": \"\", \"cborHex\": \""
         <> B16.encode (serialize' validator)
         <> "\"}"
-    putStrLn ""
