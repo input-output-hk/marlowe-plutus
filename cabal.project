@@ -35,11 +35,12 @@ package marlowe-plutus
   ghc-options: -Werror
 
 
+--Plutus 1.15.0 fork of https://github.com/Charli3-Official/oracle-datum-lib
 source-repository-package
   type: git
-  location: https://github.com/Charli3-Official/oracle-datum-lib
-  tag: 49279ab1b07efa8a6d67aa5498133ec7eca830ac
-  --sha256: 1dk050p7pml3qasljk7cfrbdvl1kp8zxgms7xh272nvvcfr54i1v
+  location: https://github.com/bwbush/oracle-datum-lib
+  tag: 6a714c1319ddcd0443e108fc55988a781b940ea5
+  --sha256: 13rvagplrar30vzkhkixxf8bwkrkndcgj6cmm02wr54ab8rnvaz1
 allow-newer:
   oracle-feed:*
 allow-older:

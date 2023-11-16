@@ -51,6 +51,8 @@ common lang
     -Wincomplete-record-updates -Wredundant-constraints -Widentities
     -Werror
 
+--  -O0 -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fno-strictness -fno-specialise -fno-spec-constr -fno-unbox-strict-fields -fno-unbox-small-strict-fields
+
 library
   import:          lang
   hs-source-dirs:  src
@@ -193,26 +195,26 @@ executable marlowe-plutus-tester
   build-tool-depends: hspec-discover:hspec-discover
   ghc-options:        -threaded
 
---executable marlowe-charli3
---  import:         lang
---  hs-source-dirs: charli3
---  main-is:        Main.hs
---  other-modules:  Language.Marlowe.Scripts.Charli3
---  build-depends:
---    , base
---    , base16-bytestring
---    , bytestring
---    , cardano-binary
---    , marlowe-cardano ==0.2.1.0
---    , marlowe-plutus
---    , optparse-applicative
---    , oracle-feed
---    , plutus-core
---    , plutus-ledger-api
---    , plutus-tx
---    , plutus-tx-plugin
---
---  if flag(trace-plutus)
---    cpp-options: -DTRACE_PLUTUS
---
---  ghc-options:    -threaded
+executable marlowe-charli3
+  import:         lang
+  hs-source-dirs: charli3
+  main-is:        Main.hs
+  other-modules:  Language.Marlowe.Plutus.Charli3
+  build-depends:
+    , base
+    , base16-bytestring
+    , bytestring
+    , cardano-binary
+    , marlowe-cardano ==0.2.1.0
+    , marlowe-plutus
+    , optparse-applicative
+    , oracle-feed
+    , plutus-core
+    , plutus-ledger-api
+    , plutus-tx
+    , plutus-tx-plugin
+
+  if flag(trace-plutus)
+    cpp-options: -DTRACE_PLUTUS
+
+  ghc-options:    -threaded
