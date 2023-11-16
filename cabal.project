@@ -62,8 +62,8 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/marlowe-cardano
-  tag: 6307625c1d58b2f18b9070a927b1e6b560b135d0
-  --sha256: 1577mm9z4jaxky9p67vlx76zmncw4a0xx2hhqbylsdv48wvsq37l
+  tag: 0e0894599d5356ba58757248d2a65911eb18001e
+  --sha256: 0k1v6hqrjlns50q1m4hfsxs0p6nivx7lm83kilx8wqbpa9xzq3g0
   subdir:
     marlowe
     marlowe-test
