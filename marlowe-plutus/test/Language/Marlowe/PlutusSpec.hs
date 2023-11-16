@@ -165,10 +165,10 @@ import qualified Spec.Marlowe.Plutus.Types as PC
 checkPlutusLog :: Bool
 maxMarloweValidatorSize :: Int
 #ifdef TRACE_PLUTUS
-maxMarloweValidatorSize = 12_737
+maxMarloweValidatorSize = 11_056
 checkPlutusLog = True
 #else
-maxMarloweValidatorSize = 12_194
+maxMarloweValidatorSize = 10_779
 checkPlutusLog = False
 #endif
 
@@ -227,8 +227,8 @@ specForScript scripts@ScriptsInfo{semanticsValidatorHash, payoutValidatorHash} =
         -- APPROVED CHANGES TO MARLOWE'S SEMANTICS VALIDATOR. THIS HASH
         -- HAS IMPLICATIONS FOR VERSIONING, AUDIT, AND CONTRACT DISCOVERY.
         ( if checkPlutusLog
-            then "7ff54a5e50dee4adf28bc2f5dbaa22791ee44a6ef622ace834dc2d9b"
-            else "d85fa9bc2bdfd97d5ebdbc5e3fc66f7476213c40c21b73b41257f09d"
+            then "f769f910b75f823f02bac40f3c258d22cdd0f565239039ecff7e7c8e"
+            else "6027a8010c555a4dd6b08882b899f4b3167c6e4524047132202dd984"
         )
   describe "Payout validator" do
     describe "Valid transactions" do
@@ -243,7 +243,10 @@ specForScript scripts@ScriptsInfo{semanticsValidatorHash, payoutValidatorHash} =
         -- DO NOT ALTER THE FOLLOWING VALUE UNLESS YOU ARE COMMITTING
         -- APPROVED CHANGES TO MARLOWE'S ROLE VALIDATOR. THIS HASH HAS
         -- IMPLICATIONS FOR VERSIONING, AUDIT, AND CONTRACT DISCOVERY.
-        "10ec7e02d25f5836b3e1098e0d4d8389e71d7a97a57aa737adc1d1fa"
+        ( if checkPlutusLog
+            then "fcb8885eb5e4f9a5cfca3c75e8c7280e482af32dcdf2d13e47d05d27"
+            else "fdade3b86107bc715037b468574dd8d3f884a0da8c9956086b9a1a51"
+        )
 
 -- | Test that the untyped validator is not too large.
 marloweValidatorSize :: ScriptsInfo -> IO ()
