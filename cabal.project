@@ -19,8 +19,6 @@ index-state:
   , hackage.haskell.org      2023-11-14T00:00:00Z
   , cardano-haskell-packages 2023-11-14T00:00:00Z
 
--- with-compiler: ghc-8.10.7
-
 packages:
   marlowe-plutus
 
@@ -41,10 +39,6 @@ source-repository-package
   location: https://github.com/bwbush/oracle-datum-lib
   tag: 6a714c1319ddcd0443e108fc55988a781b940ea5
   --sha256: 13rvagplrar30vzkhkixxf8bwkrkndcgj6cmm02wr54ab8rnvaz1
-allow-newer:
-  oracle-feed:*
-allow-older:
-  oracle-feed:*
 
 -- Required for the Plutus 1.15.0.0 packages.
 constraints:
@@ -62,8 +56,8 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/marlowe-cardano
-  tag: 0e0894599d5356ba58757248d2a65911eb18001e
-  --sha256: 0k1v6hqrjlns50q1m4hfsxs0p6nivx7lm83kilx8wqbpa9xzq3g0
+  tag: 5bec67bbecefc109ea7b47d0504f3bb7b9fba3aa
+  --sha256: 1cdwmi4c7x9fh2w4b6bxryy3h8fjfsyjhbk2vh4bfarq4yij4cyc
   subdir:
     marlowe
     marlowe-test

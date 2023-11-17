@@ -77,11 +77,12 @@ library
 
   if flag(trace-plutus)
     cpp-options: -DTRACE_PLUTUS
+    ghc-options:
+      -fforce-recomp -fplugin-opt
+      PlutusTx.Plugin:conservative-optimisation
 
   else
-    ghc-options:
-      -fplugin-opt PlutusTx.Plugin:remove-trace -fplugin-opt
-      PlutusTx.Plugin:conservative-optimisation
+    ghc-options: -fforce-recomp -fplugin-opt PlutusTx.Plugin:remove-trace
 
 executable marlowe-validators
   import:         lang
