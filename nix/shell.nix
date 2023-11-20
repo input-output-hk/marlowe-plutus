@@ -14,7 +14,7 @@ cabalProject:
     cabal-fmt.extraOptions = "--no-tabular";
     nixpkgs-fmt.enable = true;
     shellcheck.enable = true;
-    fourmolu.enable = true;
+    fourmolu.enable = false;
     hlint.enable = true;
   };
 }
