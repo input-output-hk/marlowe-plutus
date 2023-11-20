@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -95,14 +96,18 @@ import PlutusTx.Prelude as PlutusTxPrelude (
   Enum (fromEnum),
   Eq (..),
   Functor (fmap),
+#ifdef CHECK_POSITIVE_BALANCES
   Integer,
+#endif
   Maybe (..),
   Ord ((>)),
   Semigroup ((<>)),
   all,
   any,
   check,
+#if defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS)
   elem,
+#endif
   filter,
   find,
   foldMap,
@@ -231,7 +236,9 @@ mkMarloweValidator
     -- [Marlowe-Cardano Specification: "Constraint 13. Positive balances".]
     -- [Marlowe-Cardano Specification: "Constraint 19. No duplicates".]
     -- Check that the initial state obeys the Semantic's invariants.
+#ifdef CHECK_PRECONDITIONS
     let preconditionsOk = checkState "i" scriptInValue marloweState
+#endif
 
     -- [Marlowe-Cardano Specification: "Constraint 0. Input to semantics".]
     -- Package the inputs to be applied in the semantics.
@@ -281,8 +288,12 @@ mkMarloweValidator
                       -- [Marlowe-Cardano Specification: "Constraint 19. No duplicates".]
                       -- Check that the final state obeys the Semantic's invariants.
                       && checkState "o" finalBalance txOutState
+#ifdef CHECK_PRECONDITIONS
         preconditionsOk
           && inputsOk
+#else
+        inputsOk
+#endif
           && payoutsOk
           && checkContinuation
           -- [Marlowe-Cardano Specification: "20. Single satisfaction".]
@@ -347,8 +358,12 @@ mkMarloweValidator
       -- Check a state for the correct value, positive accounts, and no duplicates.
       checkState :: BuiltinString -> Val.Value -> State -> Bool
       checkState tag expected State{..} =
-        let positiveBalance :: (a, Integer) -> Bool
+        let
+#ifdef CHECK_POSITIVE_BALANCES
+            positiveBalance :: (a, Integer) -> Bool
             positiveBalance (_, balance) = balance > 0
+#endif
+#if defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS)
             noDuplicates :: (Eq k) => AssocMap.Map k v -> Bool
             noDuplicates am =
               let test [] = True -- An empty list has no duplicates.
@@ -356,16 +371,25 @@ mkMarloweValidator
                     | elem x xs = False -- A duplicate is present.
                     | otherwise = test xs -- Continue searching for a duplicate.
                in test $ AssocMap.keys am
+#endif
          in -- [Marlowe-Cardano Specification: "Constraint 5. Input value from script".]
             -- and/or
             -- [Marlowe-Cardano Specification: "Constraint 18. Final balance."]
             traceIfFalse ("v" <> tag) (totalBalance accounts == expected)
               -- [Marlowe-Cardano Specification: "Constraint 13. Positive balances".]
+#ifdef CHECK_POSITIVE_BALANCES
               && traceIfFalse ("b" <> tag) (all positiveBalance $ AssocMap.toList accounts)
+#endif
               -- [Marlowe-Cardano Specification: "Constraint 19. No duplicates".]
+#ifdef CHECK_DUPLICATE_ACCOUNTS
               && traceIfFalse ("ea" <> tag) (noDuplicates accounts)
+#endif
+#ifdef CHECK_DUPLICATE_CHOICES
               && traceIfFalse ("ec" <> tag) (noDuplicates choices)
+#endif
+#ifdef CHECK_DUPLICATE_BINDINGS
               && traceIfFalse ("eb" <> tag) (noDuplicates boundValues)
+#endif
 
       -- Look up the Datum hash for specific data.
       findDatumHash' :: (PlutusTx.ToData o) => o -> Maybe DatumHash

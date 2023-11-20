@@ -135,7 +135,9 @@ import Test.QuickCheck (
   Property,
   Testable (property),
   chooseInteger,
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
   elements,
+#endif
   forAll,
   frequency,
   listOf,
@@ -149,7 +151,12 @@ import Test.QuickCheck (
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Short as SBS
 import qualified Language.Marlowe.Core.V1.Semantics as M (MarloweData (marloweParams))
-import qualified Language.Marlowe.Core.V1.Semantics.Types as M (Party (Address), State (..))
+import qualified Language.Marlowe.Core.V1.Semantics.Types as M (
+  Party (Address),
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
+  State (..)
+#endif
+ )
 import qualified Language.Marlowe.Plutus.RolePayout as Official (
   rolePayoutValidatorBytes,
   rolePayoutValidatorHash,
@@ -159,7 +166,20 @@ import qualified Language.Marlowe.Plutus.Semantics as Official (
   marloweValidatorHash,
  )
 import qualified PlutusLedgerApi.V1.Value as V (adaSymbol, adaToken, singleton)
-import qualified PlutusTx.AssocMap as AM (Map, fromList, insert, keys, null, toList)
+import qualified PlutusTx.AssocMap as AM (
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
+  Map,
+#endif
+  fromList,
+#if defined(CHECK_PRECONDITIONS) && defined(CHECK_POSITIVE_BALANCES)
+  insert,
+#endif
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
+  keys,
+  null,
+#endif
+  toList,
+ )
 import qualified Spec.Marlowe.Plutus.Types as PC
 
 checkPlutusLog :: Bool
@@ -206,7 +226,9 @@ specForScript scripts@ScriptsInfo{semanticsValidatorHash, payoutValidatorHash} =
     prop "Constraint 2. Single Marlowe script input" $ checkDoubleInput scripts referencePaths
     prop "Constraint 3. Single Marlowe output" $ checkMultipleOutput scripts referencePaths
     prop "Constraint 4. No output to script on close" $ checkCloseOutput scripts referencePaths
+#ifdef CHECK_PRECONDITIONS
     prop "Constraint 5. Input value from script" $ checkValueInput scripts referencePaths
+#endif
     prop "Constraint 6. Output value to script" $ checkValueOutput scripts referencePaths
     prop "Constraint 9. Marlowe parameters" $ checkParamsOutput scripts referencePaths
     prop "Constraint 10. Output state" $ checkStateOutput scripts referencePaths
@@ -214,11 +236,15 @@ specForScript scripts@ScriptsInfo{semanticsValidatorHash, payoutValidatorHash} =
     describe "Constraint 12. Merkleized continuations" do
       prop "Valid merkleization" $ checkMerkleization scripts referencePaths True
       prop "Invalid merkleization" $ checkMerkleization scripts referencePaths False
+#if defined(CHECK_PRECONDITIONS) && defined(CHECK_POSITIVE_BALANCES)
     prop "Constraint 13. Positive balances" $ checkPositiveAccounts scripts referencePaths
+#endif
     prop "Constraint 14. Inputs authorized" $ checkAuthorization scripts referencePaths
     prop "Constraint 15. Sufficient payment" $ checkPayment scripts referencePaths
     prop "Constraint 18. Final balance" $ checkOutputConsistency scripts referencePaths
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
     prop "Constraint 19. No duplicates" $ checkInputDuplicates scripts referencePaths
+#endif
     prop "Constraint 20. Single satisfaction" $ checkOtherValidators scripts referencePaths
     prop "Hash golden test" $
       checkValidatorHash
@@ -849,6 +875,7 @@ checkCloseOutput scripts@ScriptsInfo{semanticsAddress} referencePaths =
           shuffleTransaction
    in checkSemanticsTransaction scripts ["c"] referencePaths noModify modifyAfter doesClose False False False
 
+#ifdef CHECK_PRECONDITIONS
 -- | Check that value input to a script matches its input state.
 checkValueInput :: ScriptsInfo -> [ReferencePath] -> Property
 checkValueInput scripts@ScriptsInfo{semanticsAddress} referencePaths =
@@ -862,6 +889,7 @@ checkValueInput scripts@ScriptsInfo{semanticsAddress} referencePaths =
           -- Update the inputs with the incremented script input.
           infoInputs %= fmap incrementOwnInput
    in checkSemanticsTransaction scripts ["vi"] referencePaths noModify modifyAfter noVeto False False False
+#endif
 
 -- | Check that value output to a script matches its expectation.
 checkValueOutput :: ScriptsInfo -> [ReferencePath] -> Property
@@ -892,6 +920,7 @@ checkOutputConsistency scripts@ScriptsInfo{semanticsAddress} referencePaths =
           valid = outValue == finalBalance
        in checkSemanticsTransaction scripts [] referencePaths noModify noModify notCloses valid False False
 
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
 -- | Add a duplicate entry to an association list.
 addDuplicate :: (Arbitrary v) => AM.Map k v -> Gen (AM.Map k v)
 addDuplicate am =
@@ -900,7 +929,9 @@ addDuplicate am =
     key <- elements $ fst <$> am'
     value <- arbitrary
     AM.fromList <$> shuffle ((key, value) : am')
+#endif
 
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
 -- | Check for the detection of duplicates in input state
 checkInputDuplicates :: ScriptsInfo -> [ReferencePath] -> Property
 checkInputDuplicates scripts referencePaths =
@@ -917,14 +948,22 @@ checkInputDuplicates scripts referencePaths =
       modifyBefore =
         do
           M.State{..} <- use inputState
-          inputState
-            <~ lift
-              ( M.State
-                  <$> makeDuplicates accounts
-                  <*> makeDuplicates choices
-                  <*> makeDuplicates boundValues
-                  <*> pure minTime
-              )
+#ifdef CHECK_DUPLICATE_ACCOUNTS
+          accounts' <- lift $ makeDuplicates accounts
+#else
+          let accounts' = accounts
+#endif
+#ifdef CHECK_DUPLICATE_CHOICES
+          choices' <- lift $ makeDuplicates choices
+#else
+          let choices' = choices
+#endif
+#ifdef CHECK_DUPLICATE_BINDINGS
+          boundValues' <- lift $ makeDuplicates boundValues
+#else
+          let boundValues' = boundValues
+#endif
+          inputState <~ pure (M.State accounts' choices' boundValues' minTime)
    in checkSemanticsTransaction
         scripts
         ["bi", "eai", "ebi", "eci", "n"]
@@ -935,6 +974,7 @@ checkInputDuplicates scripts referencePaths =
         False
         False
         False
+#endif
 
 -- | Check that output datum to a script matches its semantic output.
 checkDatumOutput :: ScriptsInfo -> [ReferencePath] -> (MarloweData -> Gen MarloweData) -> Property
@@ -1030,6 +1070,7 @@ checkMerkleization scripts referencePaths valid =
             infoData %= (AM.fromList . filter ((`notElem` hashes) . fst) . AM.toList)
    in checkSemanticsTransaction scripts ["h"] referencePaths modifyBefore modifyAfter hasMerkleizedInput valid False False
 
+#if defined(CHECK_PRECONDITIONS) && defined(CHECK_POSITIVE_BALANCES)
 -- | Check that non-positive accounts are rejected.
 checkPositiveAccounts :: ScriptsInfo -> [ReferencePath] -> Property
 checkPositiveAccounts scripts referencePaths =
@@ -1042,6 +1083,7 @@ checkPositiveAccounts scripts referencePaths =
           -- Add the non-positive entry to the accounts.
           inputState %= (\state -> state{accounts = AM.insert (account, token) amount' $ accounts state})
    in checkSemanticsTransaction scripts ["bi"] referencePaths modifyBefore noModify noVeto False False False
+#endif
 
 -- | Compute the authorization for an input.
 authorizer :: Input -> ([PubKeyHash], [TokenName])

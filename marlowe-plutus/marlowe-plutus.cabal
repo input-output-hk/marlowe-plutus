@@ -34,6 +34,41 @@ flag trace-plutus
   default:     False
   manual:      True
 
+flag check-preconditions
+  description:
+    Validator checks whether preconditions are satisfied for the Marlowe state.
+
+  default:     True
+  manual:      False
+
+flag check-positive-balances
+  description:
+    Validator checks whether any account balances are non-positive in the Marlowe state.
+
+  default:     True
+  manual:      False
+
+flag check-duplicate-accounts
+  description:
+    Validator checks whether any accounts are duplicated in the Marlowe state.
+
+  default:     True
+  manual:      False
+
+flag check-duplicate-choices
+  description:
+    Validator checks whether any choices are duplicated in the Marlowe state.
+
+  default:     True
+  manual:      False
+
+flag check-duplicate-bindings
+  description:
+    Validator checks whether any bound values are duplicated in the Marlowe state.
+
+  default:     True
+  manual:      False
+
 common lang
   default-language:   Haskell2010
   default-extensions:
@@ -50,6 +85,30 @@ common lang
     -Wall -Wnoncanonical-monad-instances -Wincomplete-uni-patterns
     -Wincomplete-record-updates -Wredundant-constraints -Widentities
     -Werror
+
+  if flag(trace-plutus)
+    cpp-options: -DTRACE_PLUTUS
+    ghc-options:
+      -fforce-recomp -fplugin-opt
+      PlutusTx.Plugin:conservative-optimisation
+
+  else
+    ghc-options: -fforce-recomp -fplugin-opt PlutusTx.Plugin:remove-trace
+
+  if flag(check-preconditions)
+    cpp-options: -DCHECK_PRECONDITIONS
+
+  if flag(check-positive-balances)
+    cpp-options: -DCHECK_POSITIVE_BALANCES
+
+  if flag(check-duplicate-accounts)
+    cpp-options: -DCHECK_DUPLICATE_ACCOUNTS
+
+  if flag(check-duplicate-choices)
+    cpp-options: -DCHECK_DUPLICATE_CHOICES
+
+  if flag(check-duplicate-bindings)
+    cpp-options: -DCHECK_DUPLICATE_BINDINGS
 
 library
   import:          lang
@@ -74,15 +133,6 @@ library
     Language.Marlowe.Plutus.RoleTokens
     Language.Marlowe.Plutus.RoleTokens.Types
     Language.Marlowe.Plutus.Semantics
-
-  if flag(trace-plutus)
-    cpp-options: -DTRACE_PLUTUS
-    ghc-options:
-      -fforce-recomp -fplugin-opt
-      PlutusTx.Plugin:conservative-optimisation
-
-  else
-    ghc-options: -fforce-recomp -fplugin-opt PlutusTx.Plugin:remove-trace
 
 executable marlowe-validators
   import:         lang
@@ -165,14 +215,6 @@ test-suite marlowe-plutus
   build-tool-depends: hspec-discover:hspec-discover
   ghc-options:        -threaded
 
-  if flag(trace-plutus)
-    cpp-options: -DTRACE_PLUTUS
-
-  else
-    ghc-options:
-      -fplugin-opt PlutusTx.Plugin:remove-trace -fplugin-opt
-      PlutusTx.Plugin:conservative-optimisation
-
 executable marlowe-plutus-tester
   import:             lang
   hs-source-dirs:     test
@@ -227,8 +269,3 @@ executable marlowe-charli3
     , plutus-tx-plugin
 
   ghc-options:    -threaded
-
-  if flag(trace-plutus)
-
-  else
-    ghc-options: -fplugin-opt PlutusTx.Plugin:remove-trace
