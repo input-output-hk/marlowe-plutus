@@ -80,5 +80,5 @@ R CMD BATCH measure.R
 
 dot -Tsvg -o Memory.svg Memory.dot
 dot -Tpng -o Memory.png Memory.dot
-dot -Tsvg -o Steps.svg Memory.dot
-dot -Tpng -o Steps.png Memory.dot
+dot -Tsvg -o Steps.svg Steps.dot
+dot -Tpng -o Steps.png Steps.dot
