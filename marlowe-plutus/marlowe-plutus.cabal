@@ -69,6 +69,13 @@ flag check-duplicate-bindings
   default:     True
   manual:      False
 
+flag plutus-asdata
+  description:
+    Experimental! Use alternative implementation relying on `PlutusTx.asData`.
+
+  default:     False
+  manual:      True
+
 common lang
   default-language:   Haskell2010
   default-extensions:
@@ -120,6 +127,7 @@ library
     , flat
     , lens
     , marlowe-cardano ==0.2.1.0
+    , newtype-generics
     , plutus-core ==1.15.0.0
     , plutus-ledger-api ==1.15.0.0
     , plutus-tx ==1.15.0.0
@@ -128,11 +136,18 @@ library
 
   exposed-modules:
     Language.Marlowe.Plutus
+    Language.Marlowe.Plutus.Alt.ScriptTypes
+    Language.Marlowe.Plutus.Alt.Semantics
+    Language.Marlowe.Plutus.Alt.Semantics.Types
+    Language.Marlowe.Plutus.Alt.Semantics.Types.Address
     Language.Marlowe.Plutus.OpenRoles
     Language.Marlowe.Plutus.RolePayout
     Language.Marlowe.Plutus.RoleTokens
     Language.Marlowe.Plutus.RoleTokens.Types
     Language.Marlowe.Plutus.Semantics
+
+  if flag(plutus-asdata)
+    cpp-options: -DPLUTUS_ASDATA
 
 executable marlowe-validators
   import:         lang
