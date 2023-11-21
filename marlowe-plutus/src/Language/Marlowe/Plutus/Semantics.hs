@@ -1,7 +1,7 @@
 {- FOURMOLU_DISABLE -}
 
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -25,32 +25,46 @@ module Language.Marlowe.Plutus.Semantics (
   mkMarloweValidator,
 ) where
 
-import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
-import PlutusCore.Version (plcVersion100)
-import PlutusLedgerApi.V2 (
-  Credential (..),
-  Datum (Datum),
-  DatumHash (DatumHash),
-  Extended (..),
-  Interval (..),
-  LowerBound (..),
-  POSIXTime (..),
-  POSIXTimeRange,
-  ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
-  ScriptHash (..),
-  ScriptPurpose (Spending),
-  SerialisedScript,
-  TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
-  TxInfo (TxInfo, txInfoInputs, txInfoOutputs, txInfoValidRange),
-  UnsafeFromData (..),
-  UpperBound (..),
-  serialiseCompiledCode,
+#ifdef PLUTUS_ASDATA
+import Language.Marlowe.Plutus.Alt.ScriptTypes (MarloweInput, MarloweTxInput (..))
+import Language.Marlowe.Plutus.Alt.Semantics as Semantics (
+  MarloweData (..),
+  MarloweParams (MarloweParams, rolesCurrency),
+  Payment (..),
+  TransactionError (
+    TEAmbiguousTimeIntervalError,
+    TEApplyNoMatchError,
+    TEHashMismatch,
+    TEIntervalError,
+    TEUselessTransaction
+  ),
+  TransactionInput (TransactionInput, txInputs, txInterval),
+  TransactionOutput (
+    Error,
+    TransactionOutput,
+    txOutContract,
+    txOutPayments,
+    txOutState
+  ),
+  computeTransaction,
+  totalBalance,
  )
-import PlutusLedgerApi.V2.Contexts (findDatum, findDatumHash, txSignedBy, valueSpent)
-import PlutusLedgerApi.V2.Tx (OutputDatum (OutputDatumHash), TxOut (TxOut, txOutAddress, txOutDatum, txOutValue))
-import PlutusTx (CompiledCode)
-import PlutusTx.Plugin ()
-
+import Language.Marlowe.Plutus.Alt.Semantics.Types as Semantics (
+  ChoiceId (ChoiceId),
+  Contract (Close),
+  CurrencySymbol,
+  Input (..),
+  InputContent (..),
+  IntervalError (IntervalInPastError, InvalidInterval),
+  Party (..),
+  Payee (Account, Party),
+  State (..),
+  Token (Token),
+  TokenName,
+  getInputContent,
+ )
+#else
+import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
 import Language.Marlowe.Core.V1.Semantics as Semantics (
   MarloweData (..),
   MarloweParams (MarloweParams, rolesCurrency),
@@ -87,6 +101,33 @@ import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
   TokenName,
   getInputContent,
  )
+#endif
+
+import PlutusCore.Version (plcVersion100)
+import PlutusLedgerApi.V2 (
+  Credential (..),
+  Datum (Datum),
+  DatumHash (DatumHash),
+  Extended (..),
+  Interval (..),
+  LowerBound (..),
+  POSIXTime (..),
+  POSIXTimeRange,
+  ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
+  ScriptHash (..),
+  ScriptPurpose (Spending),
+  SerialisedScript,
+  TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
+  TxInfo (TxInfo, txInfoInputs, txInfoOutputs, txInfoValidRange),
+  UnsafeFromData (..),
+  UpperBound (..),
+  serialiseCompiledCode,
+ )
+import PlutusLedgerApi.V2.Contexts (findDatum, findDatumHash, txSignedBy, valueSpent)
+import PlutusLedgerApi.V2.Tx (OutputDatum (OutputDatumHash), TxOut (TxOut, txOutAddress, txOutDatum, txOutValue))
+import PlutusTx (CompiledCode)
+import PlutusTx.Plugin ()
+
 import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
 import PlutusTx.Prelude as PlutusTxPrelude (
   AdditiveGroup ((-)),
