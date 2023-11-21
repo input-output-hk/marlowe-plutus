@@ -1,3 +1,5 @@
+{- FOURMOLU_DISABLE -}
+
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DerivingStrategies #-}

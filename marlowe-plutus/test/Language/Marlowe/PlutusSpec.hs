@@ -1,3 +1,5 @@
+{- FOURMOLU_DISABLE -}
+
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}

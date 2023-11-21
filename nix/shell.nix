@@ -15,7 +15,7 @@ cabalProject:
     nixpkgs-fmt.enable = true;
     shellcheck.enable = true;
     fourmolu.enable = true;
-    fourmolu.extraOptions = "-o XCPP";
+    fourmolu.extraOptions = "-o -XCPP";
     hlint.enable = true;
   };
 }
