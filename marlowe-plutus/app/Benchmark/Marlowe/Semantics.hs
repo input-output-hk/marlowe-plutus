@@ -2,22 +2,17 @@
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Benchmarking support for Marlowe's semantics validator.
---
--- Module      :  Benchmark.Marlowe.Semantics
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
 module Benchmark.Marlowe.Semantics (
   -- * Benchmarking
-  benchmarks,
-  exampleBenchmark,
-  rescript,
   validatorBytes,
   validatorHash,
+  exampleBenchmark,
+  writeUPLC,
+  benchmarks,
+  rescript,
 ) where
 
-import Benchmark.Marlowe (readBenchmarks)
+import Benchmark.Marlowe (readBenchmarks, writeFlatUPLC)
 import Benchmark.Marlowe.Types (Benchmark (..), makeBenchmark)
 import Benchmark.Marlowe.Util (
   lovelace,
@@ -29,16 +24,21 @@ import Benchmark.Marlowe.Util (
   updateScriptHash,
  )
 import Data.Bifunctor (second)
-import Language.Marlowe.Plutus (marloweValidatorBytes, marloweValidatorHash, rolePayoutValidatorHash)
-import Plutus.V2.Ledger.Api (
+import Language.Marlowe.Plutus.Semantics (
+  marloweValidator,
+  marloweValidatorBytes,
+  marloweValidatorHash,
+ )
+import PlutusLedgerApi.V2 (
   Credential (PubKeyCredential, ScriptCredential),
   ExBudget (ExBudget),
   Extended (..),
   Interval (Interval),
   LowerBound (LowerBound),
   ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
+  ScriptHash,
   ScriptPurpose (Spending),
-  SerializedScript,
+  SerialisedScript,
   TxInfo (
     TxInfo,
     txInfoDCert,
@@ -56,31 +56,30 @@ import Plutus.V2.Ledger.Api (
   ),
   TxOutRef (TxOutRef),
   UpperBound (UpperBound),
-  ValidatorHash,
   singleton,
  )
+
+import qualified Benchmark.Marlowe.RolePayout as RolePayout (validatorHash)
 import qualified PlutusTx.AssocMap as AM (empty, unionWith)
 
 -- | The serialised Marlowe semantics validator.
-validatorBytes :: SerializedScript
+validatorBytes :: SerialisedScript
 validatorBytes = marloweValidatorBytes
 
 -- | The script hash for the Marlowe semantics validator.
-validatorHash :: ValidatorHash
+validatorHash :: ScriptHash
 validatorHash = marloweValidatorHash
 
 -- | The benchmark cases for the Marlowe semantics validator.
 benchmarks :: IO (Either String [Benchmark])
 benchmarks = second (rescript <$>) <$> readBenchmarks "semantics"
 
-{-
 -- | Write flat UPLC for a benchmark.
 writeUPLC
   :: FilePath
   -> Benchmark
   -> IO ()
 writeUPLC = writeFlatUPLC marloweValidator
--}
 
 -- | Revise the validator hashes in the benchmark's script context.
 rescript
@@ -94,7 +93,7 @@ rescript benchmark@Benchmark{..} =
           marloweValidatorHash
           $ updateScriptHash
             "e165610232235bbbbeff5b998b233daae42979dec92a6722d9cda989"
-            rolePayoutValidatorHash
+            RolePayout.validatorHash
             bScriptContext
     }
 

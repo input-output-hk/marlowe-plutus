@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- | Create and export a Charli3 oracle.
 module Main (
+  -- * Entry point.
   main,
 ) where
 
@@ -10,7 +12,7 @@ import Cardano.Binary (serialize')
 import qualified Data.ByteString as BS (writeFile)
 import qualified Data.ByteString.Base16 as B16 (encode)
 import qualified Language.Marlowe.Core.V1.Semantics.Types as V1
-import qualified Language.Marlowe.Scripts.Charli3 as Charli3 (validatorBytes, validatorHash)
+import qualified Language.Marlowe.Plutus.Charli3 as Charli3 (validatorBytes, validatorHash)
 import qualified Options.Applicative as O
 
 -- | The command-line arguments.
@@ -50,7 +52,7 @@ commandParser =
             <> O.header "marlowe-charli3 : run a Charli3 oracle bridge for Marlowe contracts"
         )
 
---
+-- | Create and export a Charli3 oracle.
 main :: IO ()
 main =
   do

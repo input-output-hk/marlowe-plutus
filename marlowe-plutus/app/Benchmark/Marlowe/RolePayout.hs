@@ -1,23 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- | Benchmarking support for Marlowe's role-payout validator.
---
--- Module      :  Benchmark.Marlowe.RolePayout
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
+---- | Benchmarking support for Marlowe's role-payout validator.
 module Benchmark.Marlowe.RolePayout (
   -- * Benchmarking
   benchmarks,
-  exampleBenchmark,
-  rescript,
   validatorBytes,
   validatorHash,
+  exampleBenchmark,
+  writeUPLC,
+  rescript,
 ) where
 
-import Benchmark.Marlowe (readBenchmarks)
+import Benchmark.Marlowe (readBenchmarks, writeFlatUPLC)
 import Benchmark.Marlowe.Types (Benchmark (..), makeBenchmark)
 import Benchmark.Marlowe.Util (
   lovelace,
@@ -29,39 +24,42 @@ import Benchmark.Marlowe.Util (
   updateScriptHash,
  )
 import Data.Bifunctor (second)
-import Language.Marlowe.Plutus (rolePayoutValidatorBytes, rolePayoutValidatorHash)
-import Plutus.V2.Ledger.Api (
+import Language.Marlowe.Plutus.RolePayout (
+  rolePayoutValidator,
+  rolePayoutValidatorBytes,
+  rolePayoutValidatorHash,
+ )
+import PlutusLedgerApi.V2 (
   Credential (PubKeyCredential, ScriptCredential),
   ExBudget (ExBudget),
   Extended (NegInf, PosInf),
   Interval (Interval),
   LowerBound (LowerBound),
   ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
+  ScriptHash,
   ScriptPurpose (Spending),
-  SerializedScript,
+  SerialisedScript,
   TxInfo (..),
   TxOutRef (TxOutRef),
   UpperBound (UpperBound),
-  ValidatorHash,
   singleton,
  )
+
 import qualified PlutusTx.AssocMap as AM (empty)
 
-{-
 -- | Write a flat UPLC file for a benchmark.
 writeUPLC
   :: FilePath
   -> Benchmark
   -> IO ()
 writeUPLC = writeFlatUPLC rolePayoutValidator
--}
 
 -- | The serialised Marlowe role-payout validator.
-validatorBytes :: SerializedScript
+validatorBytes :: SerialisedScript
 validatorBytes = rolePayoutValidatorBytes
 
 -- | The hash for the Marlowe role-payout validator.
-validatorHash :: ValidatorHash
+validatorHash :: ScriptHash
 validatorHash = rolePayoutValidatorHash
 
 -- | The benchmark cases for the Marlowe role-payout validator.
@@ -143,9 +141,12 @@ exampleBenchmark =
           "d8799f581cd768a767450e9ffa2d68ae61e8476fb6267884e0477d7fd19703f9d84653656c6c6572ff"
       txInfoId = "4e16f03a5533f22adbc5097a07077f3b708b1bf74b42e6b2938dd2d4156207f0"
       scriptContextTxInfo = TxInfo{..}
-      scriptContextPurpose = Spending $ TxOutRef "ef6a9ef1b84bef3dad5e12d9bf128765595be4a92da45bda2599dc7fae7e2397" 1
+      scriptContextPurpose =
+        Spending $ TxOutRef "ef6a9ef1b84bef3dad5e12d9bf128765595be4a92da45bda2599dc7fae7e2397" 1
    in makeBenchmark
-        (makeBuiltinData "d8799f581cd768a767450e9ffa2d68ae61e8476fb6267884e0477d7fd19703f9d84653656c6c6572ff")
+        ( makeBuiltinData
+            "d8799f581cd768a767450e9ffa2d68ae61e8476fb6267884e0477d7fd19703f9d84653656c6c6572ff"
+        )
         (makeBuiltinData "d87980")
         ScriptContext{..}
         (Just $ ExBudget 477988519 1726844)

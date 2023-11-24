@@ -5,7 +5,7 @@ let
   cabalProject = pkgs.haskell-nix.cabalProject' ({ config, pkgs, ... }: {
     name = "marlowe-plutus";
     src = ../.;
-    compiler-nix-name = "ghc8107";
+    compiler-nix-name = "ghc928";
     shell.withHoogle = false;
     inputMap = {
       "https://input-output-hk.github.io/cardano-haskell-packages" = inputs.iogx.inputs.CHaP;

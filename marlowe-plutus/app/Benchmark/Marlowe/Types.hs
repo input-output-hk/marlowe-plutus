@@ -1,17 +1,11 @@
 -- | Types for benchmarking Marlowe validators.
---
--- Module      :  Benchmark.Marlowe.Types
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
 module Benchmark.Marlowe.Types (
   -- * Benchmarking
   Benchmark (..),
   makeBenchmark,
 ) where
 
-import Plutus.V2.Ledger.Api (Data, ExBudget, ScriptContext, ToData, toData)
+import PlutusLedgerApi.V2 (Data, ExBudget, ScriptContext, ToData, toData)
 
 -- | A benchmarking case.
 data Benchmark = Benchmark
@@ -22,7 +16,8 @@ data Benchmark = Benchmark
   , bScriptContext :: ScriptContext
   -- ^ The script context.
   , bReferenceCost :: Maybe ExBudget
-  -- ^ The previously measured execution costs.
+  -- ^ The previously measured execution costs in production, which uses the Plutus version on
+  -- August 18 2022 (commit 6ed578b592f46afc0e77f4d19e5955a6eb439ba4).
   }
   deriving (Show)
 
@@ -35,4 +30,4 @@ makeBenchmark
   -> ScriptContext
   -> Maybe ExBudget
   -> Benchmark
-makeBenchmark datum redeemer = Benchmark (toData datum) (toData redeemer)
+makeBenchmark = (. toData) . Benchmark . toData

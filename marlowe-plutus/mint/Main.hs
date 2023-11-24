@@ -1,23 +1,33 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Main where
+-- | Create a role-token minting script.
+module Main (
+  -- * Entry point
+  main,
+) where
 
 import Data.Aeson (FromJSON (..), FromJSONKey (..), eitherDecodeStrict, withText)
 import Data.Aeson.Types (FromJSONKeyFunction (..), Parser)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 import Data.ByteString.Base16 (decodeBase16)
-import qualified Data.ByteString.Short as SBS
 import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Word (Word16, Word64)
 import GHC.Generics (Generic)
-import Language.Marlowe.Plutus (serialiseCompiledCode)
 import Language.Marlowe.Plutus.RoleTokens (policy)
-import Language.Marlowe.Plutus.RoleTokens.Types
-import Plutus.V2.Ledger.Api hiding (Map)
+import Language.Marlowe.Plutus.RoleTokens.Types (mkRoleTokens)
+import PlutusLedgerApi.V2 (
+  TokenName (TokenName),
+  TxId (TxId),
+  TxOutRef (TxOutRef),
+  serialiseCompiledCode,
+  toBuiltin,
+ )
+
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Short as SBS
+import qualified Data.Map as Map
+import qualified Data.Text as T
 
 newtype Base16 = Base16 {unBase16 :: ByteString}
   deriving (Eq, Show, Ord)

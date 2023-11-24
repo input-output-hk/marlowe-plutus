@@ -1,3 +1,5 @@
+{- FOURMOLU_DISABLE -}
+
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
@@ -15,7 +17,7 @@ module Language.Marlowe.PlutusSpec (
   ScriptsInfo (..),
 ) where
 
-import Cardano.Api (SerialiseAsRawBytes (..), hashScriptData)
+import Cardano.Api (SerialiseAsRawBytes (..), hashScriptDataBytes, unsafeHashableScriptData)
 import Cardano.Api.Shelley (fromPlutusData)
 import Codec.Serialise (serialise)
 import Control.Lens (Lens', use, uses, (%=), (.=), (<>=), (<~), (^.))
@@ -23,15 +25,13 @@ import Control.Monad (when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExcept)
 import Control.Monad.Trans.State (StateT, execStateT)
-import Control.Monad.Trans.Writer (runWriter)
+import Control.Monad.Trans.Writer (runWriter, runWriterT)
 import Data.Aeson (eitherDecodeFileStrict)
 import Data.Bifunctor (Bifunctor (..), bimap, second)
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Short as SBS
 import Data.Default (Default (..))
 import Data.List (isSuffixOf, nub)
-import qualified Data.Map as Map
 import Data.Maybe (fromJust, maybeToList)
+import Data.SatInt (fromSatInt)
 import Data.Traversable (forM)
 import Language.Marlowe.Core.V1.Merkle (MerkleizedContract (..), deepMerkleize, merkleizeInputs)
 import Language.Marlowe.Core.V1.Semantics (
@@ -44,7 +44,6 @@ import Language.Marlowe.Core.V1.Semantics (
   paymentMoney,
   totalBalance,
  )
-import qualified Language.Marlowe.Core.V1.Semantics as M (MarloweData (marloweParams))
 import Language.Marlowe.Core.V1.Semantics.Types (
   ChoiceId (ChoiceId),
   Contract (..),
@@ -56,29 +55,14 @@ import Language.Marlowe.Core.V1.Semantics.Types (
   Token (Token),
   getInputContent,
  )
-import qualified Language.Marlowe.Core.V1.Semantics.Types as M (Party (Address), State (..))
-import qualified Language.Marlowe.Plutus as Official (
-  marloweValidatorBytes,
-  marloweValidatorHash,
-  rolePayoutValidatorBytes,
-  rolePayoutValidatorHash,
- )
-import Language.Marlowe.Scripts (MarloweInput, MarloweTxInput (..))
+import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
 import Paths_marlowe_plutus (getDataDir)
-import Plutus.ApiCommon (
-  LedgerPlutusVersion (..),
-  ProtocolVersion (..),
-  VerboseMode (..),
-  evaluateScriptCounting,
-  mkEvaluationContext,
- )
-import Plutus.V1.Ledger.Address (scriptHashAddress, toPubKeyHash)
-import Plutus.V1.Ledger.Api (BuiltinByteString, Data, toBuiltin)
-import Plutus.V1.Ledger.Value (flattenValue, gt, valueOf)
-import qualified Plutus.V1.Ledger.Value as V (adaSymbol, adaToken, singleton)
-import Plutus.V2.Ledger.Api (
+import PlutusLedgerApi.Common.Versions (futurePV)
+import PlutusLedgerApi.V1 (BuiltinByteString, Data, toBuiltin)
+import PlutusLedgerApi.V1.Address (scriptHashAddress, toPubKeyHash)
+import PlutusLedgerApi.V1.Value (flattenValue, gt, valueOf)
+import PlutusLedgerApi.V2 (
   Address (Address),
-  CostModelParams,
   Credential (..),
   CurrencySymbol,
   Data (..),
@@ -96,23 +80,26 @@ import Plutus.V2.Ledger.Api (
   PubKeyHash,
   Redeemer (..),
   ScriptContext (..),
+  ScriptHash,
   ScriptPurpose (Spending),
-  SerializedScript,
+  SerialisedScript,
   ToData (..),
   TokenName,
   TxInInfo (..),
   TxInfo (..),
   TxOut (..),
   UpperBound (UpperBound),
-  ValidatorHash,
   Value,
+  VerboseMode (Verbose),
   adaSymbol,
   adaToken,
+  deserialiseScript,
+  evaluateScriptCounting,
   fromData,
+  mkEvaluationContext,
   singleton,
   toData,
  )
-import qualified PlutusTx.AssocMap as AM (Map, fromList, insert, keys, null, toList)
 import PlutusTx.These (These (..))
 import Spec.Marlowe.Plutus.Arbitrary ()
 import Spec.Marlowe.Plutus.Lens ((<><~))
@@ -136,33 +123,83 @@ import Spec.Marlowe.Plutus.Types (
   role,
   scriptPurpose,
  )
-import qualified Spec.Marlowe.Plutus.Types as PC
 import Spec.Marlowe.Reference (ReferencePath (..), arbitraryReferenceTransaction)
 import Spec.Marlowe.Semantics.Arbitrary (arbitraryGoldenTransaction, arbitraryPositiveInteger)
 import Spec.Marlowe.Semantics.Golden (GoldenTransaction)
 import System.Directory (listDirectory)
 import System.FilePath ((<.>), (</>))
 import System.IO.Unsafe (unsafePerformIO)
-import Test.Hspec
+import Test.Hspec (Spec, describe, it, runIO, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck
+import Test.QuickCheck (
+  Arbitrary (arbitrary),
+  Gen,
+  Property,
+  Testable (property),
+  chooseInteger,
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
+  elements,
+#endif
+  forAll,
+  frequency,
+  listOf,
+  listOf1,
+  oneof,
+  shuffle,
+  suchThat,
+  (===),
+ )
+
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Short as SBS
+import qualified Language.Marlowe.Core.V1.Semantics as M (MarloweData (marloweParams))
+import qualified Language.Marlowe.Core.V1.Semantics.Types as M (
+  Party (Address),
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
+  State (..)
+#endif
+ )
+import qualified Language.Marlowe.Plutus.RolePayout as Official (
+  rolePayoutValidatorBytes,
+  rolePayoutValidatorHash,
+ )
+import qualified Language.Marlowe.Plutus.Semantics as Official (
+  marloweValidatorBytes,
+  marloweValidatorHash,
+ )
+import qualified PlutusLedgerApi.V1.Value as V (adaSymbol, adaToken, singleton)
+import qualified PlutusTx.AssocMap as AM (
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
+  Map,
+#endif
+  fromList,
+#if defined(CHECK_PRECONDITIONS) && defined(CHECK_POSITIVE_BALANCES)
+  insert,
+#endif
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
+  keys,
+  null,
+#endif
+  toList,
+ )
+import qualified Spec.Marlowe.Plutus.Types as PC
 
 checkPlutusLog :: Bool
 maxMarloweValidatorSize :: Int
 #ifdef TRACE_PLUTUS
-maxMarloweValidatorSize = 12737
+maxMarloweValidatorSize = 11_249
 checkPlutusLog = True
 #else
-maxMarloweValidatorSize = 12194
+maxMarloweValidatorSize = 10_779
 checkPlutusLog = False
 #endif
 
 data ScriptsInfo = ScriptsInfo
-  { semanticsValidatorBytes :: !SerializedScript
-  , semanticsValidatorHash :: !ValidatorHash
+  { semanticsValidatorBytes :: !SerialisedScript
+  , semanticsValidatorHash :: !ScriptHash
   , semanticsAddress :: !Address
-  , payoutValidatorBytes :: !SerializedScript
-  , payoutValidatorHash :: !ValidatorHash
+  , payoutValidatorBytes :: !SerialisedScript
+  , payoutValidatorHash :: !ScriptHash
   , payoutAddress :: !Address
   }
 
@@ -191,7 +228,9 @@ specForScript scripts@ScriptsInfo{semanticsValidatorHash, payoutValidatorHash} =
     prop "Constraint 2. Single Marlowe script input" $ checkDoubleInput scripts referencePaths
     prop "Constraint 3. Single Marlowe output" $ checkMultipleOutput scripts referencePaths
     prop "Constraint 4. No output to script on close" $ checkCloseOutput scripts referencePaths
+#ifdef CHECK_PRECONDITIONS
     prop "Constraint 5. Input value from script" $ checkValueInput scripts referencePaths
+#endif
     prop "Constraint 6. Output value to script" $ checkValueOutput scripts referencePaths
     prop "Constraint 9. Marlowe parameters" $ checkParamsOutput scripts referencePaths
     prop "Constraint 10. Output state" $ checkStateOutput scripts referencePaths
@@ -199,11 +238,15 @@ specForScript scripts@ScriptsInfo{semanticsValidatorHash, payoutValidatorHash} =
     describe "Constraint 12. Merkleized continuations" do
       prop "Valid merkleization" $ checkMerkleization scripts referencePaths True
       prop "Invalid merkleization" $ checkMerkleization scripts referencePaths False
+#if defined(CHECK_PRECONDITIONS) && defined(CHECK_POSITIVE_BALANCES)
     prop "Constraint 13. Positive balances" $ checkPositiveAccounts scripts referencePaths
+#endif
     prop "Constraint 14. Inputs authorized" $ checkAuthorization scripts referencePaths
     prop "Constraint 15. Sufficient payment" $ checkPayment scripts referencePaths
     prop "Constraint 18. Final balance" $ checkOutputConsistency scripts referencePaths
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
     prop "Constraint 19. No duplicates" $ checkInputDuplicates scripts referencePaths
+#endif
     prop "Constraint 20. Single satisfaction" $ checkOtherValidators scripts referencePaths
     prop "Hash golden test" $
       checkValidatorHash
@@ -212,8 +255,8 @@ specForScript scripts@ScriptsInfo{semanticsValidatorHash, payoutValidatorHash} =
         -- APPROVED CHANGES TO MARLOWE'S SEMANTICS VALIDATOR. THIS HASH
         -- HAS IMPLICATIONS FOR VERSIONING, AUDIT, AND CONTRACT DISCOVERY.
         ( if checkPlutusLog
-            then "7ff54a5e50dee4adf28bc2f5dbaa22791ee44a6ef622ace834dc2d9b"
-            else "d85fa9bc2bdfd97d5ebdbc5e3fc66f7476213c40c21b73b41257f09d"
+            then "f015a6a380ee5fe8a7e86110031ae9a54f7594cb6ec9ed7302964327"
+            else "6027a8010c555a4dd6b08882b899f4b3167c6e4524047132202dd984"
         )
   describe "Payout validator" do
     describe "Valid transactions" do
@@ -228,7 +271,10 @@ specForScript scripts@ScriptsInfo{semanticsValidatorHash, payoutValidatorHash} =
         -- DO NOT ALTER THE FOLLOWING VALUE UNLESS YOU ARE COMMITTING
         -- APPROVED CHANGES TO MARLOWE'S ROLE VALIDATOR. THIS HASH HAS
         -- IMPLICATIONS FOR VERSIONING, AUDIT, AND CONTRACT DISCOVERY.
-        "10ec7e02d25f5836b3e1098e0d4d8389e71d7a97a57aa737adc1d1fa"
+        ( if checkPlutusLog
+            then "7f01c268cb6c400315d6d5b9c28da380bdd4d39682d5373fae9c22a8"
+            else "fdade3b86107bc715037b468574dd8d3f884a0da8c9956086b9a1a51"
+        )
 
 -- | Test that the untyped validator is not too large.
 marloweValidatorSize :: ScriptsInfo -> IO ()
@@ -694,7 +740,7 @@ noVeto :: PlutusTransaction a -> Bool
 noVeto = const True
 
 dataHash :: (ToData a) => a -> BuiltinByteString
-dataHash = toBuiltin . serialiseToRawBytes . hashScriptData . fromPlutusData . toData
+dataHash = toBuiltin . serialiseToRawBytes . hashScriptDataBytes . unsafeHashableScriptData . fromPlutusData . toData
 
 -- | Check that a semantics transaction succeeds.
 checkSemanticsTransaction
@@ -831,6 +877,7 @@ checkCloseOutput scripts@ScriptsInfo{semanticsAddress} referencePaths =
           shuffleTransaction
    in checkSemanticsTransaction scripts ["c"] referencePaths noModify modifyAfter doesClose False False False
 
+#ifdef CHECK_PRECONDITIONS
 -- | Check that value input to a script matches its input state.
 checkValueInput :: ScriptsInfo -> [ReferencePath] -> Property
 checkValueInput scripts@ScriptsInfo{semanticsAddress} referencePaths =
@@ -844,6 +891,7 @@ checkValueInput scripts@ScriptsInfo{semanticsAddress} referencePaths =
           -- Update the inputs with the incremented script input.
           infoInputs %= fmap incrementOwnInput
    in checkSemanticsTransaction scripts ["vi"] referencePaths noModify modifyAfter noVeto False False False
+#endif
 
 -- | Check that value output to a script matches its expectation.
 checkValueOutput :: ScriptsInfo -> [ReferencePath] -> Property
@@ -874,6 +922,7 @@ checkOutputConsistency scripts@ScriptsInfo{semanticsAddress} referencePaths =
           valid = outValue == finalBalance
        in checkSemanticsTransaction scripts [] referencePaths noModify noModify notCloses valid False False
 
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
 -- | Add a duplicate entry to an association list.
 addDuplicate :: (Arbitrary v) => AM.Map k v -> Gen (AM.Map k v)
 addDuplicate am =
@@ -882,7 +931,9 @@ addDuplicate am =
     key <- elements $ fst <$> am'
     value <- arbitrary
     AM.fromList <$> shuffle ((key, value) : am')
+#endif
 
+#if defined(CHECK_PRECONDITIONS) && (defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS))
 -- | Check for the detection of duplicates in input state
 checkInputDuplicates :: ScriptsInfo -> [ReferencePath] -> Property
 checkInputDuplicates scripts referencePaths =
@@ -899,14 +950,22 @@ checkInputDuplicates scripts referencePaths =
       modifyBefore =
         do
           M.State{..} <- use inputState
-          inputState
-            <~ lift
-              ( M.State
-                  <$> makeDuplicates accounts
-                  <*> makeDuplicates choices
-                  <*> makeDuplicates boundValues
-                  <*> pure minTime
-              )
+#ifdef CHECK_DUPLICATE_ACCOUNTS
+          accounts' <- lift $ makeDuplicates accounts
+#else
+          let accounts' = accounts
+#endif
+#ifdef CHECK_DUPLICATE_CHOICES
+          choices' <- lift $ makeDuplicates choices
+#else
+          let choices' = choices
+#endif
+#ifdef CHECK_DUPLICATE_BINDINGS
+          boundValues' <- lift $ makeDuplicates boundValues
+#else
+          let boundValues' = boundValues
+#endif
+          inputState <~ pure (M.State accounts' choices' boundValues' minTime)
    in checkSemanticsTransaction
         scripts
         ["bi", "eai", "ebi", "eci", "n"]
@@ -917,6 +976,7 @@ checkInputDuplicates scripts referencePaths =
         False
         False
         False
+#endif
 
 -- | Check that output datum to a script matches its semantic output.
 checkDatumOutput :: ScriptsInfo -> [ReferencePath] -> (MarloweData -> Gen MarloweData) -> Property
@@ -1012,6 +1072,7 @@ checkMerkleization scripts referencePaths valid =
             infoData %= (AM.fromList . filter ((`notElem` hashes) . fst) . AM.toList)
    in checkSemanticsTransaction scripts ["h"] referencePaths modifyBefore modifyAfter hasMerkleizedInput valid False False
 
+#if defined(CHECK_PRECONDITIONS) && defined(CHECK_POSITIVE_BALANCES)
 -- | Check that non-positive accounts are rejected.
 checkPositiveAccounts :: ScriptsInfo -> [ReferencePath] -> Property
 checkPositiveAccounts scripts referencePaths =
@@ -1024,6 +1085,7 @@ checkPositiveAccounts scripts referencePaths =
           -- Add the non-positive entry to the accounts.
           inputState %= (\state -> state{accounts = AM.insert (account, token) amount' $ accounts state})
    in checkSemanticsTransaction scripts ["bi"] referencePaths modifyBefore noModify noVeto False False False
+#endif
 
 -- | Compute the authorization for an input.
 authorizer :: Input -> ([PubKeyHash], [TokenName])
@@ -1146,8 +1208,8 @@ checkWithdrawal scripts mutate =
 
 -- | Check that a validator hash is correct.
 checkValidatorHash
-  :: ValidatorHash
-  -> ValidatorHash
+  :: ScriptHash
+  -> ScriptHash
   -> Property
 checkValidatorHash actual reference =
   property $ actual === reference
@@ -1196,8 +1258,8 @@ unsafeDumpBenchmark folder d r c ExBudget{..} x =
               [ d
               , r
               , c
-              , I $ toInteger cpu
-              , I $ toInteger memory
+              , I $ fromSatInt cpu
+              , I $ fromSatInt memory
               ]
           payload = serialise result
       folder' <- (</> folder) <$> getDataDir
@@ -1227,18 +1289,21 @@ evaluateSemantics
   -> These String LogOutput
   -- ^ The result.
 evaluateSemantics ScriptsInfo{semanticsValidatorBytes} d r c =
-  case evaluationContext of
-    Left message -> This message
-    Right ec -> case evaluateScriptCounting PlutusV2 (ProtocolVersion 8 0) Verbose ec semanticsValidatorBytes [d, r, c] of
-      (logOutput, Right ex@ExBudget{..}) ->
-        ( if dumpBenchmarks
-            then unsafeDumpBenchmark "semantics" d r c ex
-            else id
-        )
-          $ if enforceBudget && (exBudgetCPU > 10_000_000_000 || exBudgetMemory > 14_000_000)
-            then These ("Exceeded Plutus budget: " <> show ex) logOutput
-            else That logOutput
-      (logOutput, Left message) -> These (show message) logOutput
+  case deserialiseScript futurePV semanticsValidatorBytes of
+    Left message -> This $ show message
+    Right validator ->
+      case evaluationContext of
+        Left message -> This message
+        Right ec -> case evaluateScriptCounting futurePV Verbose ec validator [d, r, c] of
+          (logOutput, Right ex@ExBudget{..}) ->
+            ( if dumpBenchmarks
+                then unsafeDumpBenchmark "semantics" d r c ex
+                else id
+            )
+              $ if enforceBudget && (exBudgetCPU > 10_000_000_000 || exBudgetMemory > 14_000_000)
+                then These ("Exceeded Plutus budget: " <> show ex) logOutput
+                else That logOutput
+          (logOutput, Left message) -> These (show message) logOutput
 
 -- | Run the Plutus evaluator on the Marlowe payout validator.
 evaluatePayout
@@ -1253,198 +1318,200 @@ evaluatePayout
   -> These String LogOutput
   -- ^ The result.
 evaluatePayout ScriptsInfo{payoutValidatorBytes} d r c =
-  case evaluationContext of
-    Left message -> This message
-    Right ec -> case evaluateScriptCounting PlutusV2 (ProtocolVersion 8 0) Verbose ec payoutValidatorBytes [d, r, c] of
-      (logOutput, Right ex) ->
-        ( if dumpBenchmarks
-            then unsafeDumpBenchmark "rolepayout" d r c ex
-            else id
-        )
-          $ That logOutput
-      (logOutput, Left message) -> These (show message) logOutput
+  case deserialiseScript futurePV payoutValidatorBytes of
+    Left message -> This $ show message
+    Right validator ->
+      case evaluationContext of
+        Left message -> This message
+        Right ec -> case evaluateScriptCounting futurePV Verbose ec validator [d, r, c] of
+          (logOutput, Right ex) ->
+            ( if dumpBenchmarks
+                then unsafeDumpBenchmark "rolepayout" d r c ex
+                else id
+            )
+              $ That logOutput
+          (logOutput, Left message) -> These (show message) logOutput
 
 -- | Build an evaluation context.
 evaluationContext :: Either String EvaluationContext
-evaluationContext = first show . runExcept $ mkEvaluationContext costModel
+evaluationContext = bimap show fst . runExcept . runWriterT . mkEvaluationContext $ snd <$> costModel
 
 -- | A default cost model for Plutus.
-costModel :: CostModelParams
+costModel :: [(String, Integer)]
 costModel =
-  Map.fromList
-    [ ("addInteger-cpu-arguments-intercept", 205665)
-    , ("addInteger-cpu-arguments-slope", 812)
-    , ("addInteger-memory-arguments-intercept", 1)
-    , ("addInteger-memory-arguments-slope", 1)
-    , ("appendByteString-cpu-arguments-intercept", 1000)
-    , ("appendByteString-cpu-arguments-slope", 571)
-    , ("appendByteString-memory-arguments-intercept", 0)
-    , ("appendByteString-memory-arguments-slope", 1)
-    , ("appendString-cpu-arguments-intercept", 1000)
-    , ("appendString-cpu-arguments-slope", 24177)
-    , ("appendString-memory-arguments-intercept", 4)
-    , ("appendString-memory-arguments-slope", 1)
-    , ("bData-cpu-arguments", 1000)
-    , ("bData-memory-arguments", 32)
-    , ("blake2b_256-cpu-arguments-intercept", 117366)
-    , ("blake2b_256-cpu-arguments-slope", 10475)
-    , ("blake2b_256-memory-arguments", 4)
-    , ("cekApplyCost-exBudgetCPU", 23000)
-    , ("cekApplyCost-exBudgetMemory", 100)
-    , ("cekBuiltinCost-exBudgetCPU", 23000)
-    , ("cekBuiltinCost-exBudgetMemory", 100)
-    , ("cekConstCost-exBudgetCPU", 23000)
-    , ("cekConstCost-exBudgetMemory", 100)
-    , ("cekDelayCost-exBudgetCPU", 23000)
-    , ("cekDelayCost-exBudgetMemory", 100)
-    , ("cekForceCost-exBudgetCPU", 23000)
-    , ("cekForceCost-exBudgetMemory", 100)
-    , ("cekLamCost-exBudgetCPU", 23000)
-    , ("cekLamCost-exBudgetMemory", 100)
-    , ("cekStartupCost-exBudgetCPU", 100)
-    , ("cekStartupCost-exBudgetMemory", 100)
-    , ("cekVarCost-exBudgetCPU", 23000)
-    , ("cekVarCost-exBudgetMemory", 100)
-    , ("chooseData-cpu-arguments", 19537)
-    , ("chooseData-memory-arguments", 32)
-    , ("chooseList-cpu-arguments", 175354)
-    , ("chooseList-memory-arguments", 32)
-    , ("chooseUnit-cpu-arguments", 46417)
-    , ("chooseUnit-memory-arguments", 4)
-    , ("consByteString-cpu-arguments-intercept", 221973)
-    , ("consByteString-cpu-arguments-slope", 511)
-    , ("consByteString-memory-arguments-intercept", 0)
-    , ("consByteString-memory-arguments-slope", 1)
-    , ("constrData-cpu-arguments", 89141)
-    , ("constrData-memory-arguments", 32)
-    , ("decodeUtf8-cpu-arguments-intercept", 497525)
-    , ("decodeUtf8-cpu-arguments-slope", 14068)
-    , ("decodeUtf8-memory-arguments-intercept", 4)
-    , ("decodeUtf8-memory-arguments-slope", 2)
-    , ("divideInteger-cpu-arguments-constant", 196500)
-    , ("divideInteger-cpu-arguments-model-arguments-intercept", 453240)
-    , ("divideInteger-cpu-arguments-model-arguments-slope", 220)
-    , ("divideInteger-memory-arguments-intercept", 0)
-    , ("divideInteger-memory-arguments-minimum", 1)
-    , ("divideInteger-memory-arguments-slope", 1)
-    , ("encodeUtf8-cpu-arguments-intercept", 1000)
-    , ("encodeUtf8-cpu-arguments-slope", 28662)
-    , ("encodeUtf8-memory-arguments-intercept", 4)
-    , ("encodeUtf8-memory-arguments-slope", 2)
-    , ("equalsByteString-cpu-arguments-constant", 245000)
-    , ("equalsByteString-cpu-arguments-intercept", 216773)
-    , ("equalsByteString-cpu-arguments-slope", 62)
-    , ("equalsByteString-memory-arguments", 1)
-    , ("equalsData-cpu-arguments-intercept", 1060367)
-    , ("equalsData-cpu-arguments-slope", 12586)
-    , ("equalsData-memory-arguments", 1)
-    , ("equalsInteger-cpu-arguments-intercept", 208512)
-    , ("equalsInteger-cpu-arguments-slope", 421)
-    , ("equalsInteger-memory-arguments", 1)
-    , ("equalsString-cpu-arguments-constant", 187000)
-    , ("equalsString-cpu-arguments-intercept", 1000)
-    , ("equalsString-cpu-arguments-slope", 52998)
-    , ("equalsString-memory-arguments", 1)
-    , ("fstPair-cpu-arguments", 80436)
-    , ("fstPair-memory-arguments", 32)
-    , ("headList-cpu-arguments", 43249)
-    , ("headList-memory-arguments", 32)
-    , ("iData-cpu-arguments", 1000)
-    , ("iData-memory-arguments", 32)
-    , ("ifThenElse-cpu-arguments", 80556)
-    , ("ifThenElse-memory-arguments", 1)
-    , ("indexByteString-cpu-arguments", 57667)
-    , ("indexByteString-memory-arguments", 4)
-    , ("lengthOfByteString-cpu-arguments", 1000)
-    , ("lengthOfByteString-memory-arguments", 10)
-    , ("lessThanByteString-cpu-arguments-intercept", 197145)
-    , ("lessThanByteString-cpu-arguments-slope", 156)
-    , ("lessThanByteString-memory-arguments", 1)
-    , ("lessThanEqualsByteString-cpu-arguments-intercept", 197145)
-    , ("lessThanEqualsByteString-cpu-arguments-slope", 156)
-    , ("lessThanEqualsByteString-memory-arguments", 1)
-    , ("lessThanEqualsInteger-cpu-arguments-intercept", 204924)
-    , ("lessThanEqualsInteger-cpu-arguments-slope", 473)
-    , ("lessThanEqualsInteger-memory-arguments", 1)
-    , ("lessThanInteger-cpu-arguments-intercept", 208896)
-    , ("lessThanInteger-cpu-arguments-slope", 511)
-    , ("lessThanInteger-memory-arguments", 1)
-    , ("listData-cpu-arguments", 52467)
-    , ("listData-memory-arguments", 32)
-    , ("mapData-cpu-arguments", 64832)
-    , ("mapData-memory-arguments", 32)
-    , ("mkCons-cpu-arguments", 65493)
-    , ("mkCons-memory-arguments", 32)
-    , ("mkNilData-cpu-arguments", 22558)
-    , ("mkNilData-memory-arguments", 32)
-    , ("mkNilPairData-cpu-arguments", 16563)
-    , ("mkNilPairData-memory-arguments", 32)
-    , ("mkPairData-cpu-arguments", 76511)
-    , ("mkPairData-memory-arguments", 32)
-    , ("modInteger-cpu-arguments-constant", 196500)
-    , ("modInteger-cpu-arguments-model-arguments-intercept", 453240)
-    , ("modInteger-cpu-arguments-model-arguments-slope", 220)
-    , ("modInteger-memory-arguments-intercept", 0)
-    , ("modInteger-memory-arguments-minimum", 1)
-    , ("modInteger-memory-arguments-slope", 1)
-    , ("multiplyInteger-cpu-arguments-intercept", 69522)
-    , ("multiplyInteger-cpu-arguments-slope", 11687)
-    , ("multiplyInteger-memory-arguments-intercept", 0)
-    , ("multiplyInteger-memory-arguments-slope", 1)
-    , ("nullList-cpu-arguments", 60091)
-    , ("nullList-memory-arguments", 32)
-    , ("quotientInteger-cpu-arguments-constant", 196500)
-    , ("quotientInteger-cpu-arguments-model-arguments-intercept", 453240)
-    , ("quotientInteger-cpu-arguments-model-arguments-slope", 220)
-    , ("quotientInteger-memory-arguments-intercept", 0)
-    , ("quotientInteger-memory-arguments-minimum", 1)
-    , ("quotientInteger-memory-arguments-slope", 1)
-    , ("remainderInteger-cpu-arguments-constant", 196500)
-    , ("remainderInteger-cpu-arguments-model-arguments-intercept", 453240)
-    , ("remainderInteger-cpu-arguments-model-arguments-slope", 220)
-    , ("remainderInteger-memory-arguments-intercept", 0)
-    , ("remainderInteger-memory-arguments-minimum", 1)
-    , ("remainderInteger-memory-arguments-slope", 1)
-    , ("serialiseData-cpu-arguments-intercept", 1159724)
-    , ("serialiseData-cpu-arguments-slope", 392670)
-    , ("serialiseData-memory-arguments-intercept", 0)
-    , ("serialiseData-memory-arguments-slope", 2)
-    , ("sha2_256-cpu-arguments-intercept", 806990)
-    , ("sha2_256-cpu-arguments-slope", 30482)
-    , ("sha2_256-memory-arguments", 4)
-    , ("sha3_256-cpu-arguments-intercept", 1927926)
-    , ("sha3_256-cpu-arguments-slope", 82523)
-    , ("sha3_256-memory-arguments", 4)
-    , ("sliceByteString-cpu-arguments-intercept", 265318)
-    , ("sliceByteString-cpu-arguments-slope", 0)
-    , ("sliceByteString-memory-arguments-intercept", 4)
-    , ("sliceByteString-memory-arguments-slope", 0)
-    , ("sndPair-cpu-arguments", 85931)
-    , ("sndPair-memory-arguments", 32)
-    , ("subtractInteger-cpu-arguments-intercept", 205665)
-    , ("subtractInteger-cpu-arguments-slope", 812)
-    , ("subtractInteger-memory-arguments-intercept", 1)
-    , ("subtractInteger-memory-arguments-slope", 1)
-    , ("tailList-cpu-arguments", 41182)
-    , ("tailList-memory-arguments", 32)
-    , ("trace-cpu-arguments", 212342)
-    , ("trace-memory-arguments", 32)
-    , ("unBData-cpu-arguments", 31220)
-    , ("unBData-memory-arguments", 32)
-    , ("unConstrData-cpu-arguments", 32696)
-    , ("unConstrData-memory-arguments", 32)
-    , ("unIData-cpu-arguments", 43357)
-    , ("unIData-memory-arguments", 32)
-    , ("unListData-cpu-arguments", 32247)
-    , ("unListData-memory-arguments", 32)
-    , ("unMapData-cpu-arguments", 38314)
-    , ("unMapData-memory-arguments", 32)
-    , ("verifyEcdsaSecp256k1Signature-cpu-arguments", 35892428)
-    , ("verifyEcdsaSecp256k1Signature-memory-arguments", 10)
-    , ("verifyEd25519Signature-cpu-arguments-intercept", 57996947)
-    , ("verifyEd25519Signature-cpu-arguments-slope", 18975)
-    , ("verifyEd25519Signature-memory-arguments", 10)
-    , ("verifySchnorrSecp256k1Signature-cpu-arguments-intercept", 38887044)
-    , ("verifySchnorrSecp256k1Signature-cpu-arguments-slope", 32947)
-    , ("verifySchnorrSecp256k1Signature-memory-arguments", 10)
-    ]
+  [ ("addInteger-cpu-arguments-intercept", 205_665)
+  , ("addInteger-cpu-arguments-slope", 812)
+  , ("addInteger-memory-arguments-intercept", 1)
+  , ("addInteger-memory-arguments-slope", 1)
+  , ("appendByteString-cpu-arguments-intercept", 1_000)
+  , ("appendByteString-cpu-arguments-slope", 571)
+  , ("appendByteString-memory-arguments-intercept", 0)
+  , ("appendByteString-memory-arguments-slope", 1)
+  , ("appendString-cpu-arguments-intercept", 1_000)
+  , ("appendString-cpu-arguments-slope", 24_177)
+  , ("appendString-memory-arguments-intercept", 4)
+  , ("appendString-memory-arguments-slope", 1)
+  , ("bData-cpu-arguments", 1_000)
+  , ("bData-memory-arguments", 32)
+  , ("blake2b_256-cpu-arguments-intercept", 117_366)
+  , ("blake2b_256-cpu-arguments-slope", 10_475)
+  , ("blake2b_256-memory-arguments", 4)
+  , ("cekApplyCost-exBudgetCPU", 23_000)
+  , ("cekApplyCost-exBudgetMemory", 100)
+  , ("cekBuiltinCost-exBudgetCPU", 23_000)
+  , ("cekBuiltinCost-exBudgetMemory", 100)
+  , ("cekConstCost-exBudgetCPU", 23_000)
+  , ("cekConstCost-exBudgetMemory", 100)
+  , ("cekDelayCost-exBudgetCPU", 23_000)
+  , ("cekDelayCost-exBudgetMemory", 100)
+  , ("cekForceCost-exBudgetCPU", 23_000)
+  , ("cekForceCost-exBudgetMemory", 100)
+  , ("cekLamCost-exBudgetCPU", 23_000)
+  , ("cekLamCost-exBudgetMemory", 100)
+  , ("cekStartupCost-exBudgetCPU", 100)
+  , ("cekStartupCost-exBudgetMemory", 100)
+  , ("cekVarCost-exBudgetCPU", 23_000)
+  , ("cekVarCost-exBudgetMemory", 100)
+  , ("chooseData-cpu-arguments", 19_537)
+  , ("chooseData-memory-arguments", 32)
+  , ("chooseList-cpu-arguments", 175_354)
+  , ("chooseList-memory-arguments", 32)
+  , ("chooseUnit-cpu-arguments", 46_417)
+  , ("chooseUnit-memory-arguments", 4)
+  , ("consByteString-cpu-arguments-intercept", 221_973)
+  , ("consByteString-cpu-arguments-slope", 511)
+  , ("consByteString-memory-arguments-intercept", 0)
+  , ("consByteString-memory-arguments-slope", 1)
+  , ("constrData-cpu-arguments", 89_141)
+  , ("constrData-memory-arguments", 32)
+  , ("decodeUtf8-cpu-arguments-intercept", 497_525)
+  , ("decodeUtf8-cpu-arguments-slope", 14_068)
+  , ("decodeUtf8-memory-arguments-intercept", 4)
+  , ("decodeUtf8-memory-arguments-slope", 2)
+  , ("divideInteger-cpu-arguments-constant", 196_500)
+  , ("divideInteger-cpu-arguments-model-arguments-intercept", 453_240)
+  , ("divideInteger-cpu-arguments-model-arguments-slope", 220)
+  , ("divideInteger-memory-arguments-intercept", 0)
+  , ("divideInteger-memory-arguments-minimum", 1)
+  , ("divideInteger-memory-arguments-slope", 1)
+  , ("encodeUtf8-cpu-arguments-intercept", 1_000)
+  , ("encodeUtf8-cpu-arguments-slope", 28_662)
+  , ("encodeUtf8-memory-arguments-intercept", 4)
+  , ("encodeUtf8-memory-arguments-slope", 2)
+  , ("equalsByteString-cpu-arguments-constant", 245_000)
+  , ("equalsByteString-cpu-arguments-intercept", 216_773)
+  , ("equalsByteString-cpu-arguments-slope", 62)
+  , ("equalsByteString-memory-arguments", 1)
+  , ("equalsData-cpu-arguments-intercept", 1_060_367)
+  , ("equalsData-cpu-arguments-slope", 12_586)
+  , ("equalsData-memory-arguments", 1)
+  , ("equalsInteger-cpu-arguments-intercept", 208_512)
+  , ("equalsInteger-cpu-arguments-slope", 421)
+  , ("equalsInteger-memory-arguments", 1)
+  , ("equalsString-cpu-arguments-constant", 187_000)
+  , ("equalsString-cpu-arguments-intercept", 1_000)
+  , ("equalsString-cpu-arguments-slope", 52_998)
+  , ("equalsString-memory-arguments", 1)
+  , ("fstPair-cpu-arguments", 80_436)
+  , ("fstPair-memory-arguments", 32)
+  , ("headList-cpu-arguments", 43_249)
+  , ("headList-memory-arguments", 32)
+  , ("iData-cpu-arguments", 1_000)
+  , ("iData-memory-arguments", 32)
+  , ("ifThenElse-cpu-arguments", 80_556)
+  , ("ifThenElse-memory-arguments", 1)
+  , ("indexByteString-cpu-arguments", 57_667)
+  , ("indexByteString-memory-arguments", 4)
+  , ("lengthOfByteString-cpu-arguments", 1_000)
+  , ("lengthOfByteString-memory-arguments", 10)
+  , ("lessThanByteString-cpu-arguments-intercept", 197_145)
+  , ("lessThanByteString-cpu-arguments-slope", 156)
+  , ("lessThanByteString-memory-arguments", 1)
+  , ("lessThanEqualsByteString-cpu-arguments-intercept", 197_145)
+  , ("lessThanEqualsByteString-cpu-arguments-slope", 156)
+  , ("lessThanEqualsByteString-memory-arguments", 1)
+  , ("lessThanEqualsInteger-cpu-arguments-intercept", 204_924)
+  , ("lessThanEqualsInteger-cpu-arguments-slope", 473)
+  , ("lessThanEqualsInteger-memory-arguments", 1)
+  , ("lessThanInteger-cpu-arguments-intercept", 208_896)
+  , ("lessThanInteger-cpu-arguments-slope", 511)
+  , ("lessThanInteger-memory-arguments", 1)
+  , ("listData-cpu-arguments", 52_467)
+  , ("listData-memory-arguments", 32)
+  , ("mapData-cpu-arguments", 64_832)
+  , ("mapData-memory-arguments", 32)
+  , ("mkCons-cpu-arguments", 65_493)
+  , ("mkCons-memory-arguments", 32)
+  , ("mkNilData-cpu-arguments", 22_558)
+  , ("mkNilData-memory-arguments", 32)
+  , ("mkNilPairData-cpu-arguments", 16_563)
+  , ("mkNilPairData-memory-arguments", 32)
+  , ("mkPairData-cpu-arguments", 76_511)
+  , ("mkPairData-memory-arguments", 32)
+  , ("modInteger-cpu-arguments-constant", 196_500)
+  , ("modInteger-cpu-arguments-model-arguments-intercept", 453_240)
+  , ("modInteger-cpu-arguments-model-arguments-slope", 220)
+  , ("modInteger-memory-arguments-intercept", 0)
+  , ("modInteger-memory-arguments-minimum", 1)
+  , ("modInteger-memory-arguments-slope", 1)
+  , ("multiplyInteger-cpu-arguments-intercept", 69_522)
+  , ("multiplyInteger-cpu-arguments-slope", 11_687)
+  , ("multiplyInteger-memory-arguments-intercept", 0)
+  , ("multiplyInteger-memory-arguments-slope", 1)
+  , ("nullList-cpu-arguments", 60_091)
+  , ("nullList-memory-arguments", 32)
+  , ("quotientInteger-cpu-arguments-constant", 196_500)
+  , ("quotientInteger-cpu-arguments-model-arguments-intercept", 453_240)
+  , ("quotientInteger-cpu-arguments-model-arguments-slope", 220)
+  , ("quotientInteger-memory-arguments-intercept", 0)
+  , ("quotientInteger-memory-arguments-minimum", 1)
+  , ("quotientInteger-memory-arguments-slope", 1)
+  , ("remainderInteger-cpu-arguments-constant", 196_500)
+  , ("remainderInteger-cpu-arguments-model-arguments-intercept", 453_240)
+  , ("remainderInteger-cpu-arguments-model-arguments-slope", 220)
+  , ("remainderInteger-memory-arguments-intercept", 0)
+  , ("remainderInteger-memory-arguments-minimum", 1)
+  , ("remainderInteger-memory-arguments-slope", 1)
+  , ("serialiseData-cpu-arguments-intercept", 1_159_724)
+  , ("serialiseData-cpu-arguments-slope", 392_670)
+  , ("serialiseData-memory-arguments-intercept", 0)
+  , ("serialiseData-memory-arguments-slope", 2)
+  , ("sha2_256-cpu-arguments-intercept", 806_990)
+  , ("sha2_256-cpu-arguments-slope", 30_482)
+  , ("sha2_256-memory-arguments", 4)
+  , ("sha3_256-cpu-arguments-intercept", 1_927_926)
+  , ("sha3_256-cpu-arguments-slope", 82_523)
+  , ("sha3_256-memory-arguments", 4)
+  , ("sliceByteString-cpu-arguments-intercept", 265_318)
+  , ("sliceByteString-cpu-arguments-slope", 0)
+  , ("sliceByteString-memory-arguments-intercept", 4)
+  , ("sliceByteString-memory-arguments-slope", 0)
+  , ("sndPair-cpu-arguments", 85_931)
+  , ("sndPair-memory-arguments", 32)
+  , ("subtractInteger-cpu-arguments-intercept", 205_665)
+  , ("subtractInteger-cpu-arguments-slope", 812)
+  , ("subtractInteger-memory-arguments-intercept", 1)
+  , ("subtractInteger-memory-arguments-slope", 1)
+  , ("tailList-cpu-arguments", 41_182)
+  , ("tailList-memory-arguments", 32)
+  , ("trace-cpu-arguments", 212_342)
+  , ("trace-memory-arguments", 32)
+  , ("unBData-cpu-arguments", 31_220)
+  , ("unBData-memory-arguments", 32)
+  , ("unConstrData-cpu-arguments", 32_696)
+  , ("unConstrData-memory-arguments", 32)
+  , ("unIData-cpu-arguments", 43_357)
+  , ("unIData-memory-arguments", 32)
+  , ("unListData-cpu-arguments", 32_247)
+  , ("unListData-memory-arguments", 32)
+  , ("unMapData-cpu-arguments", 38_314)
+  , ("unMapData-memory-arguments", 32)
+  , ("verifyEcdsaSecp256k1Signature-cpu-arguments", 35_892_428)
+  , ("verifyEcdsaSecp256k1Signature-memory-arguments", 10)
+  , ("verifyEd25519Signature-cpu-arguments-intercept", 57_996_947)
+  , ("verifyEd25519Signature-cpu-arguments-slope", 18_975)
+  , ("verifyEd25519Signature-memory-arguments", 10)
+  , ("verifySchnorrSecp256k1Signature-cpu-arguments-intercept", 38_887_044)
+  , ("verifySchnorrSecp256k1Signature-cpu-arguments-slope", 32_947)
+  , ("verifySchnorrSecp256k1Signature-memory-arguments", 10)
+  ]

@@ -1,13 +1,3 @@
------------------------------------------------------------------------------
---
--- Module      :  $Headers
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
---
------------------------------------------------------------------------------
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
@@ -16,7 +6,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -38,7 +27,7 @@
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:defer-errors #-}
 
 -- | Plutus validator for Charli3 bridge to Marlowe contracts.
-module Language.Marlowe.Scripts.Charli3 (
+module Language.Marlowe.Plutus.Charli3 (
   -- * Validator
   mkValidator,
   validator,
@@ -46,50 +35,40 @@ module Language.Marlowe.Scripts.Charli3 (
   validatorHash,
 ) where
 
-import Language.Marlowe.Core.V1.Semantics.Types qualified as V1
-import Language.Marlowe.Plutus (hashScript, serialiseCompiledCode)
-import Language.Marlowe.Scripts qualified as V1.Scripts
-import OracleFeed qualified as C3
-import Plutus.V1.Ledger.Address (scriptHashAddress)
-import Plutus.V1.Ledger.Value (adaSymbol, getValue, valueOf)
-import Plutus.V2.Ledger.Api (
+import Language.Marlowe.Plutus (hashScript)
+import Language.Marlowe.Plutus.Semantics (marloweValidatorHash)
+import PlutusCore.Version (plcVersion100)
+import PlutusLedgerApi.V1.Address (scriptHashAddress)
+import PlutusLedgerApi.V1.Value (adaSymbol, getValue, valueOf)
+import PlutusLedgerApi.V2 (
   OutputDatum (OutputDatum, OutputDatumHash),
   Redeemer (..),
   ScriptContext (..),
+  ScriptHash,
   ScriptPurpose (Spending),
-  SerializedScript,
+  SerialisedScript,
   TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
   TxInfo (..),
   TxOut (..),
-  ValidatorHash,
   fromBuiltinData,
+  serialiseCompiledCode,
  )
-import Plutus.V2.Ledger.Api qualified as PV2
-import Plutus.V2.Ledger.Contexts (findDatum, txSignedBy)
+import PlutusLedgerApi.V2.Contexts (findDatum, txSignedBy)
 import PlutusTx (CompiledCode)
-import PlutusTx qualified
-import PlutusTx.AssocMap qualified as AssocMap
-import PlutusTx.Prelude as PlutusTxPrelude hiding (traceError, traceIfFalse)
 
-#ifdef TRACE_PLUTUS
+import PlutusTx.Prelude as PlutusTxPrelude
 
-import PlutusTx.Prelude (traceError, traceIfFalse)
-
-#else
-
-{-# INLINABLE traceError #-}
-traceError :: BuiltinString -> a
-traceError _ = error ()
-
-{-# INLINABLE traceIfFalse #-}
-traceIfFalse :: BuiltinString -> a -> a
-traceIfFalse _ = id
-
-#endif
+import qualified Language.Marlowe.Core.V1.Semantics.Types as V1
+import qualified Language.Marlowe.Scripts.Types as V1.Scripts
+import qualified OracleFeed as C3
+import qualified PlutusLedgerApi.V2 as PV2
+import qualified PlutusTx
+import qualified PlutusTx.AssocMap as AssocMap
+import qualified Prelude as Haskell (Either (..), error, show)
 
 -- | Create the Plutus validator for the Charli3 bridge.
 mkValidator
-  :: ValidatorHash
+  :: ScriptHash
   -- ^ The hash of the corresponding Marlowe validator.
   -> V1.CurrencySymbol
   -- ^ The policy ID for the Charli3 oracle feed.
@@ -184,15 +163,19 @@ validator
 validator charli3CurrencySymbol charli3TokenName charli3ChoiceName = do
   -- FIXME: Hard-coded values used for proof-of-concept demonstration only.
   let validator'
-        :: ValidatorHash -> V1.CurrencySymbol -> V1.TokenName -> V1.ChoiceName -> BuiltinData -> BuiltinData -> BuiltinData -> ()
+        :: ScriptHash -> V1.CurrencySymbol -> V1.TokenName -> V1.ChoiceName -> BuiltinData -> BuiltinData -> BuiltinData -> ()
       validator' mvh c3p c3n c3c d r p =
         PlutusTxPrelude.check
           $ mkValidator mvh c3p c3n c3c (PV2.unsafeFromBuiltinData d) (PV2.unsafeFromBuiltinData r) (PV2.unsafeFromBuiltinData p)
-  $$(PlutusTx.compile [||validator'||])
-    `PlutusTx.applyCode` PlutusTx.liftCode V1.Scripts.marloweValidatorHash
-    `PlutusTx.applyCode` PlutusTx.liftCode charli3CurrencySymbol
-    `PlutusTx.applyCode` PlutusTx.liftCode charli3TokenName
-    `PlutusTx.applyCode` PlutusTx.liftCode charli3ChoiceName
+      errorOrApplied =
+        $$(PlutusTx.compile [||validator'||])
+          `PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 marloweValidatorHash
+          >>= (`PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 charli3CurrencySymbol)
+          >>= (`PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 charli3TokenName)
+          >>= (`PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 charli3ChoiceName)
+   in case errorOrApplied of
+        Haskell.Left err -> Haskell.error $ "Application of marlowe validator hash to openRole validator failed." <> Haskell.show err
+        Haskell.Right applied -> applied
 
 -- | Compute the bytes of the Plutus validator for the Charli3 bridge.
 validatorBytes
@@ -202,7 +185,7 @@ validatorBytes
   -- ^ The token name from the Charli3 oracle feed.
   -> V1.ChoiceName
   -- ^ Name of the oracle choice in Marlowe.
-  -> SerializedScript
+  -> SerialisedScript
   -- ^ The serialized Plutus script.
 validatorBytes = ((serialiseCompiledCode .) .) . validator
 
@@ -214,6 +197,6 @@ validatorHash
   -- ^ The token name from the Charli3 oracle feed.
   -> V1.ChoiceName
   -- ^ Name of the oracle choice in Marlowe.
-  -> ValidatorHash
+  -> ScriptHash
   -- ^ The validator hash.
 validatorHash = ((hashScript .) .) . validator
