@@ -28,6 +28,8 @@ import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
 import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V1.Value (valueOf)
 import PlutusLedgerApi.V2 (
+  Address (..),
+  Credential (..),
   FromData (..),
   Redeemer (..),
   ScriptHash (..),
@@ -49,7 +51,6 @@ import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
   Party (Role),
   TokenName,
  )
-import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
 import PlutusTx.Prelude as PlutusTxPrelude (
   Bool (False),
   BuiltinData,
@@ -161,14 +162,16 @@ mkOpenRoleValidator
     { subScriptContextTxInfo = SubTxInfo{subTxInfoInputs, subTxInfoRedeemers}
     , subScriptContextPurpose = Spending txOutRef
     } = do
-    let marloweValidatorAddress = Address.scriptHashAddress marloweValidatorHash
-        -- Performance:
+    let -- Performance:
         -- In the case of three inputs `find` seems to be faster than custom single pass over the list.
         -- Inlined pattern matching over `Maybe` in both cases also seems to be faster than separate helper function.
         ownInput = case find (\TxInInfo{txInInfoOutRef} -> txInInfoOutRef == txOutRef) subTxInfoInputs of
           Just input -> input
           Nothing -> traceError "1" -- Own input not found.
-        marloweInput = case find (\TxInInfo{txInInfoResolved} -> txOutAddress txInInfoResolved == marloweValidatorAddress) subTxInfoInputs of
+        marloweInput = case find
+          ( \TxInInfo{txInInfoResolved} -> addressCredential (txOutAddress txInInfoResolved) == ScriptCredential marloweValidatorHash
+          )
+          subTxInfoInputs of
           Just input -> input
           Nothing -> traceError "1" -- Marlowe input not found.
         TxInInfo{txInInfoResolved = TxOut{txOutValue = ownValue}} = ownInput
