@@ -53,7 +53,7 @@ main =
     -- Print the semantics validator, and write the plutus file.
     printValidator
       "Open roles"
-      (dir </> "marlowe-openroles")
+      (dir </> "open-role")
       openRoleValidatorHash
       openRoleValidatorBytes
 
