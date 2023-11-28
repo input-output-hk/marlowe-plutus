@@ -136,10 +136,10 @@ library
 
   exposed-modules:
     Language.Marlowe.Plutus
-    Language.Marlowe.Plutus.Alt.ScriptTypes
-    Language.Marlowe.Plutus.Alt.Semantics
-    Language.Marlowe.Plutus.Alt.Semantics.Types
-    Language.Marlowe.Plutus.Alt.Semantics.Types.Address
+    Language.Marlowe.Plutus.AsData.ScriptTypes
+    Language.Marlowe.Plutus.AsData.Semantics
+    Language.Marlowe.Plutus.AsData.Semantics.Types
+    Language.Marlowe.Plutus.AsData.Semantics.Types.Address
     Language.Marlowe.Plutus.OpenRoles
     Language.Marlowe.Plutus.RolePayout
     Language.Marlowe.Plutus.RoleTokens

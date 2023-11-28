@@ -26,8 +26,8 @@ module Language.Marlowe.Plutus.Semantics (
 ) where
 
 #ifdef PLUTUS_ASDATA
-import Language.Marlowe.Plutus.Alt.ScriptTypes (MarloweInput, MarloweTxInput (..))
-import Language.Marlowe.Plutus.Alt.Semantics as Semantics (
+import Language.Marlowe.Plutus.AsData.ScriptTypes (MarloweInput, MarloweTxInput (..))
+import Language.Marlowe.Plutus.AsData.Semantics as Semantics (
   MarloweData (..),
   MarloweParams (MarloweParams, rolesCurrency),
   Payment (..),
@@ -49,7 +49,7 @@ import Language.Marlowe.Plutus.Alt.Semantics as Semantics (
   computeTransaction,
   totalBalance,
  )
-import Language.Marlowe.Plutus.Alt.Semantics.Types as Semantics (
+import Language.Marlowe.Plutus.AsData.Semantics.Types as Semantics (
   ChoiceId (ChoiceId),
   Contract (Close),
   CurrencySymbol,

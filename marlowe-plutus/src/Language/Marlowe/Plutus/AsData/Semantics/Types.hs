@@ -21,7 +21,7 @@
 {-# OPTIONS_GHC -fno-strictness #-}
 
 -- | Types for Marlowe semantics
-module Language.Marlowe.Plutus.Alt.Semantics.Types (
+module Language.Marlowe.Plutus.AsData.Semantics.Types (
   -- * Type Aliases
   AccountId,
   Accounts,
@@ -78,7 +78,7 @@ import Control.Newtype.Generics (Newtype)
 import Data.Data (Data)
 import Data.String (IsString (..))
 import GHC.Generics (Generic)
-import Language.Marlowe.Plutus.Alt.Semantics.Types.Address (Network)
+import Language.Marlowe.Plutus.AsData.Semantics.Types.Address (Network)
 import PlutusLedgerApi.V2 (CurrencySymbol, POSIXTime (..), TokenName)
 import PlutusTx.AsData (asData)
 import PlutusTx.AssocMap (Map)

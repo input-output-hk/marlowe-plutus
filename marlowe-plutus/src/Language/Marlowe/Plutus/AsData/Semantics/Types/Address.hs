@@ -10,7 +10,7 @@
 -----------------------------------------------------------------------------
 
 -- | Address types for Marlowe.
-module Language.Marlowe.Plutus.Alt.Semantics.Types.Address (
+module Language.Marlowe.Plutus.AsData.Semantics.Types.Address (
   -- * Types
   Network,
 ) where

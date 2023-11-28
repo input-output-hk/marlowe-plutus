@@ -37,7 +37,7 @@
 --   /Redeemer Script/
 --
 --   /Validation Script/ is always the same Marlowe interpreter implementation, available below.
-module Language.Marlowe.Plutus.Alt.Semantics (
+module Language.Marlowe.Plutus.AsData.Semantics (
   -- * Semantics
   MarloweData (MarloweData, marloweParams, marloweState, marloweContract),
   MarloweParams (..),
@@ -89,7 +89,7 @@ module Language.Marlowe.Plutus.Alt.Semantics (
 
 import Data.Data (Data)
 import GHC.Generics (Generic)
-import Language.Marlowe.Plutus.Alt.Semantics.Types
+import Language.Marlowe.Plutus.AsData.Semantics.Types
 import PlutusLedgerApi.V2 (POSIXTime (..))
 import PlutusTx (FromData, ToData, UnsafeFromData)
 import PlutusTx.AsData (asData)
