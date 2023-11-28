@@ -71,8 +71,13 @@ flag check-duplicate-bindings
 
 flag plutus-asdata
   description:
-    Experimental! Use alternative implementation relying on `PlutusTx.asData`.
+    DANGER: Use alternative implementation relying on `PlutusTx.asData`.
 
+  default:     False
+  manual:      True
+
+flag validator-experiment
+  description: DANGER: Use the experimental, unaudited validator.
   default:     False
   manual:      True
 
@@ -140,6 +145,11 @@ library
     Language.Marlowe.Plutus.AsData.Semantics
     Language.Marlowe.Plutus.AsData.Semantics.Types
     Language.Marlowe.Plutus.AsData.Semantics.Types.Address
+    Language.Marlowe.Plutus.Experiment.Script
+    Language.Marlowe.Plutus.Experiment.ScriptTypes
+    Language.Marlowe.Plutus.Experiment.Semantics
+    Language.Marlowe.Plutus.Experiment.Semantics.Types
+    Language.Marlowe.Plutus.Experiment.Semantics.Types.Address
     Language.Marlowe.Plutus.OpenRoles
     Language.Marlowe.Plutus.RolePayout
     Language.Marlowe.Plutus.RoleTokens
@@ -179,6 +189,9 @@ executable marlowe-validators
     , text
 
   ghc-options:    -threaded
+
+  if flag(validator-experiment)
+    cpp-options: -DVALIDATOR_EXPERIMENT
 
 executable marlowe-minting-validator
   import:         lang
