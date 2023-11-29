@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  $Headers
@@ -7,10 +8,11 @@
 -- Portability :  Portable
 --
 -----------------------------------------------------------------------------
-{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -20,15 +22,19 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -O0 #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 -- A big hammer, but it helps.
 {-# OPTIONS_GHC -fno-specialise #-}
 {-# OPTIONS_GHC -fno-strictness #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Types for Marlowe semantics
 module Language.Marlowe.Plutus.Experiment.Semantics.Types (
@@ -45,7 +51,7 @@ module Language.Marlowe.Plutus.Experiment.Semantics.Types (
   Action (..),
   Bound (..),
   Case (..),
-  ChoiceId (..),
+  ChoiceId (ChoiceId),
   Contract (..),
   CurrencySymbol (..),
   Environment (..),
@@ -53,10 +59,10 @@ module Language.Marlowe.Plutus.Experiment.Semantics.Types (
   InputContent (..),
   IntervalResult (..),
   Observation (..),
-  Party (..),
+  Party (Address, Role),
   Payee (..),
-  State (..),
-  Token (..),
+  State (State, accounts, choices, boundValues, minTime),
+  Token (Token),
   TokenName (..),
   Value (..),
   ValueId (..),
@@ -72,34 +78,49 @@ module Language.Marlowe.Plutus.Experiment.Semantics.Types (
 ) where
 
 import Control.Newtype.Generics (Newtype)
+import Data.Data (Data)
 import Data.String (IsString (..))
 import GHC.Generics
 import Language.Marlowe.Plutus.Experiment.Semantics.Types.Address
 import Language.Marlowe.Pretty (Pretty (..))
 import qualified PlutusLedgerApi.V1.Value as Val
 import PlutusLedgerApi.V2 (CurrencySymbol (unCurrencySymbol), POSIXTime (..), TokenName (unTokenName))
-import qualified PlutusLedgerApi.V2 as Ledger (Address (..))
-import PlutusTx (makeIsDataIndexed)
+import qualified PlutusLedgerApi.V2 as Ledger (
+  Address (..),
+  Credential (..),
+  PubKeyHash (..),
+  ScriptHash (..),
+  StakingCredential (..),
+ )
+import PlutusTx.AsData (asData)
 import PlutusTx.AssocMap (Map)
 import qualified PlutusTx.AssocMap as Map
+import PlutusTx.IsData (FromData, ToData, UnsafeFromData, makeIsDataIndexed)
 import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude hiding (encodeUtf8, mapM, (<$>), (<*>), (<>))
 import qualified Prelude as Haskell
 
+deriving stock instance Data POSIXTime
+deriving stock instance Data Ledger.Address
+deriving stock instance Data Ledger.Credential
+deriving stock instance Data Ledger.PubKeyHash
+deriving stock instance Data Ledger.ScriptHash
+deriving stock instance Data Ledger.StakingCredential
+
 -- Functions that used in Plutus Core must be inlinable,
 -- so their code is available for PlutusTx compiler.
-{-# INLINEABLE getAction #-}
-{-# INLINEABLE getInputContent #-}
-{-# INLINEABLE inBounds #-}
-{-# INLINEABLE emptyState #-}
 
--- | A Party to a contractt.
-data Party
-  = -- | Party identified by a network address.
-    Address Network Ledger.Address
-  | -- | Party identified by a role token name.
-    Role TokenName
-  deriving stock (Generic, Haskell.Eq, Haskell.Ord, Haskell.Show)
+asData
+  [d|
+    -- \| A Party to a contract.
+    data Party
+      = Address Network Ledger.Address
+      | -- \^ Party identified by a network address.
+        Role TokenName
+      -- \^ Party identified by a role token name.
+      deriving stock (Generic, Data)
+      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
+    |]
 
 -- | A party's internal account in a contract.
 type AccountId = Party
@@ -119,19 +140,23 @@ type ChosenNum = Integer
 -- | The time validity range for a Marlowe transaction, inclusive of both endpoints.
 type TimeInterval = (POSIXTime, POSIXTime)
 
--- | The accounts in a contract.
-type Accounts = Map (AccountId, Token) Integer
+asData
+  [d|
+    -- \| Choices – of integers – are identified by ChoiceId which combines a name for
+    -- the choice with the Party who had made the choice.
+    data ChoiceId = ChoiceId BuiltinByteString Party
+      deriving stock (Generic, Data)
+      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
+    |]
 
--- | Choices – of integers – are identified by ChoiceId which combines a name for
--- the choice with the Party who had made the choice.
-data ChoiceId = ChoiceId BuiltinByteString Party
-  deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
-
--- | Token - represents a currency or token, it groups
---   a pair of a currency symbol and token name.
-data Token = Token CurrencySymbol TokenName
-  deriving stock (Generic, Haskell.Eq, Haskell.Ord)
-  deriving anyclass (Pretty)
+asData
+  [d|
+    -- \| Token - represents a currency or token, it groups
+    --   a pair of a currency symbol and token name.
+    data Token = Token CurrencySymbol TokenName
+      deriving stock (Generic, Data)
+      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord)
+    |]
 
 instance Haskell.Show Token where
   showsPrec p (Token cs tn) =
@@ -139,12 +164,17 @@ instance Haskell.Show Token where
       (p Haskell.>= 11)
       (Haskell.showString $ "Token \"" Haskell.++ Haskell.show cs Haskell.++ "\" " Haskell.++ Haskell.show tn)
 
+-- | The accounts in a contract.
+type Accounts = Map (AccountId, Token) Integer
+
 -- | Values, as defined using Let ar e identified by name,
 --   and can be used by 'UseValue' construct.
 newtype ValueId = ValueId BuiltinByteString
   deriving (IsString, Haskell.Show) via TokenName
-  deriving stock (Haskell.Eq, Haskell.Ord, Generic)
+  deriving stock (Haskell.Eq, Haskell.Ord, Generic, Data)
   deriving anyclass (Newtype)
+
+makeIsDataIndexed ''ValueId [('ValueId, 0)]
 
 -- | Values include some quantities that change with time,
 --   including “the time interval”, “the current balance of an account”,
@@ -229,6 +259,7 @@ data Case a
 getAction :: Case a -> Action
 getAction (Case action _) = action
 getAction (MerkleizedCase action _) = action
+{-# INLINEABLE getAction #-}
 
 -- | Marlowe has six ways of building contracts.
 --   Five of these – 'Pay', 'Let', 'If', 'When' and 'Assert' –
@@ -245,6 +276,25 @@ data Contract
   | Assert Observation Contract
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
 
+#ifndef USE
+
+asData
+  [d|
+    -- \| Marlowe contract internal state. Stored in a /Datum/ of a transaction output.
+    data State = State
+      { accounts :: Accounts
+      , choices :: Map ChoiceId ChosenNum
+      , boundValues :: Map ValueId Integer
+      , minTime :: POSIXTime
+      }
+      deriving stock (Generic, Data)
+      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
+    |]
+
+{-# INLINEABLE State #-}
+
+#else
+
 -- | Marlowe contract internal state. Stored in a /Datum/ of a transaction output.
 data State = State
   { accounts :: Accounts
@@ -253,6 +303,8 @@ data State = State
   , minTime :: POSIXTime
   }
   deriving stock (Haskell.Show, Haskell.Eq, Generic)
+
+#endif
 
 -- | Execution environment. Contains a time interval of a transaction.
 newtype Environment = Environment {timeInterval :: TimeInterval}
@@ -276,6 +328,7 @@ data Input
 getInputContent :: Input -> InputContent
 getInputContent (NormalInput inputContent) = inputContent
 getInputContent (MerkleizedInput inputContent _ _) = inputContent
+{-# INLINEABLE getInputContent #-}
 
 -- | Time interval errors.
 --   'InvalidInterval' means @slotStart > slotEnd@, and
@@ -302,10 +355,12 @@ emptyState sn =
     , boundValues = Map.empty
     , minTime = sn
     }
+{-# INLINEABLE emptyState #-}
 
 -- | Check if a 'num' is within a list of inclusive bounds.
 inBounds :: ChosenNum -> [Bound] -> Bool
 inBounds num = any (\(Bound l u) -> num >= l && num <= u)
+{-# INLINEABLE inBounds #-}
 
 instance Eq Party where
   {-# INLINEABLE (==) #-}
@@ -452,13 +507,9 @@ instance Eq State where
 
 -- Lifting data types to Plutus Core
 makeLift ''Party
-makeIsDataIndexed ''Party [('Address, 0), ('Role, 1)]
 makeLift ''ChoiceId
-makeIsDataIndexed ''ChoiceId [('ChoiceId, 0)]
 makeLift ''Token
-makeIsDataIndexed ''Token [('Token, 0)]
 makeLift ''ValueId
-makeIsDataIndexed ''ValueId [('ValueId, 0)]
 makeLift ''Value
 makeIsDataIndexed
   ''Value
@@ -509,7 +560,6 @@ makeIsDataIndexed
   , ('Assert, 5)
   ]
 makeLift ''State
-makeIsDataIndexed ''State [('State, 0)]
 makeLift ''Environment
 makeLift ''InputContent
 makeIsDataIndexed ''InputContent [('IDeposit, 0), ('IChoice, 1), ('INotify, 2)]
