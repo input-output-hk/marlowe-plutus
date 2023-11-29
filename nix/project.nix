@@ -15,6 +15,16 @@ let
         marlowe-plutus.ghcOptions = [ "-Werror" ];
       };
     }];
+    flake.variants.traced = {
+      modules = [{
+        packages = {
+          marlowe-plutus = {
+            ghcOptions = [ "-Werror" ];
+            configureFlags = [ "--flag=+trace-plutus" ];
+          };
+        };
+      }];
+    };
   });
 
   project = lib.iogx.mkHaskellProject {

@@ -14,5 +14,6 @@ in
       ${inputs.self.packages.marlowe-validators}/bin/marlowe-validators
       rm -rf out/
     '';
+    packages.traced-marlowe-validators = project.variants.traced.packages.marlowe-validators;
   }
 ]
