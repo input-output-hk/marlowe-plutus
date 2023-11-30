@@ -11,6 +11,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -20,9 +21,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
@@ -46,7 +49,7 @@ module Language.Marlowe.Plutus.Experiment.Semantics.Types (
   Bound (..),
   Case (..),
   ChoiceId (..),
-  Contract (..),
+  Contract (Close, Pay, When, If, Assert, Let),
   CurrencySymbol (..),
   Environment (..),
   Input (..),
@@ -72,6 +75,7 @@ module Language.Marlowe.Plutus.Experiment.Semantics.Types (
 ) where
 
 import Control.Newtype.Generics (Newtype)
+import Data.Data (Data)
 import Data.String (IsString (..))
 import GHC.Generics
 import Language.Marlowe.Plutus.Experiment.Semantics.Types.Address
@@ -79,19 +83,13 @@ import Language.Marlowe.Pretty (Pretty (..))
 import qualified PlutusLedgerApi.V1.Value as Val
 import PlutusLedgerApi.V2 (CurrencySymbol (unCurrencySymbol), POSIXTime (..), TokenName (unTokenName))
 import qualified PlutusLedgerApi.V2 as Ledger (Address (..))
-import PlutusTx (makeIsDataIndexed)
+import PlutusTx (FromData, ToData, UnsafeFromData, makeIsDataIndexed)
+import PlutusTx.AsData (asData)
 import PlutusTx.AssocMap (Map)
 import qualified PlutusTx.AssocMap as Map
 import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude hiding (encodeUtf8, mapM, (<$>), (<*>), (<>))
 import qualified Prelude as Haskell
-
--- Functions that used in Plutus Core must be inlinable,
--- so their code is available for PlutusTx compiler.
-{-# INLINEABLE getAction #-}
-{-# INLINEABLE getInputContent #-}
-{-# INLINEABLE inBounds #-}
-{-# INLINEABLE emptyState #-}
 
 -- | A Party to a contractt.
 data Party
@@ -100,6 +98,8 @@ data Party
   | -- | Party identified by a role token name.
     Role TokenName
   deriving stock (Generic, Haskell.Eq, Haskell.Ord, Haskell.Show)
+
+makeIsDataIndexed ''Party [('Address, 0), ('Role, 1)]
 
 -- | A party's internal account in a contract.
 type AccountId = Party
@@ -119,6 +119,14 @@ type ChosenNum = Integer
 -- | The time validity range for a Marlowe transaction, inclusive of both endpoints.
 type TimeInterval = (POSIXTime, POSIXTime)
 
+-- | Token - represents a currency or token, it groups
+--   a pair of a currency symbol and token name.
+data Token = Token CurrencySymbol TokenName
+  deriving stock (Generic, Haskell.Eq, Haskell.Ord)
+  deriving anyclass (Pretty)
+
+makeIsDataIndexed ''Token [('Token, 0)]
+
 -- | The accounts in a contract.
 type Accounts = Map (AccountId, Token) Integer
 
@@ -127,11 +135,7 @@ type Accounts = Map (AccountId, Token) Integer
 data ChoiceId = ChoiceId BuiltinByteString Party
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
 
--- | Token - represents a currency or token, it groups
---   a pair of a currency symbol and token name.
-data Token = Token CurrencySymbol TokenName
-  deriving stock (Generic, Haskell.Eq, Haskell.Ord)
-  deriving anyclass (Pretty)
+makeIsDataIndexed ''ChoiceId [('ChoiceId, 0)]
 
 instance Haskell.Show Token where
   showsPrec p (Token cs tn) =
@@ -145,6 +149,8 @@ newtype ValueId = ValueId BuiltinByteString
   deriving (IsString, Haskell.Show) via TokenName
   deriving stock (Haskell.Eq, Haskell.Ord, Generic)
   deriving anyclass (Newtype)
+
+makeIsDataIndexed ''ValueId [('ValueId, 0)]
 
 -- | Values include some quantities that change with time,
 --   including “the time interval”, “the current balance of an account”,
@@ -166,6 +172,22 @@ data Value a
   | Cond a (Value a) (Value a)
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
 
+makeIsDataIndexed
+  ''Value
+  [ ('AvailableMoney, 0)
+  , ('Constant, 1)
+  , ('NegValue, 2)
+  , ('AddValue, 3)
+  , ('SubValue, 4)
+  , ('MulValue, 5)
+  , ('DivValue, 6)
+  , ('ChoiceValue, 7)
+  , ('TimeIntervalStart, 8)
+  , ('TimeIntervalEnd, 9)
+  , ('UseValue, 10)
+  , ('Cond, 11)
+  ]
+
 -- | Observations are Boolean values derived by comparing values,
 --   and can be combined using the standard Boolean operators.
 --
@@ -185,10 +207,27 @@ data Observation
   | FalseObs
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
 
+makeIsDataIndexed
+  ''Observation
+  [ ('AndObs, 0)
+  , ('OrObs, 1)
+  , ('NotObs, 2)
+  , ('ChoseSomething, 3)
+  , ('ValueGE, 4)
+  , ('ValueGT, 5)
+  , ('ValueLT, 6)
+  , ('ValueLE, 7)
+  , ('ValueEQ, 8)
+  , ('TrueObs, 9)
+  , ('FalseObs, 10)
+  ]
+
 -- | The (inclusive) bound on a choice number.
 data Bound = Bound Integer Integer
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
   deriving anyclass (Pretty)
+
+makeIsDataIndexed ''Bound [('Bound, 0)]
 
 -- | Actions happen at particular points during execution.
 --   Three kinds of action are possible:
@@ -207,6 +246,8 @@ data Action
   | Notify Observation
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
 
+makeIsDataIndexed ''Action [('Deposit, 0), ('Choice, 1), ('Notify, 2)]
+
 -- | A payment can be made to one of the parties to the contract,
 --   or to one of the accounts of the contract,
 --   and this is reflected in the definition.
@@ -214,6 +255,8 @@ data Payee
   = Account AccountId
   | Party Party
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
+
+makeIsDataIndexed ''Payee [('Account, 0), ('Party, 1)]
 
 -- | A case is a branch of a when clause, guarded by an action.
 --   The continuation of the contract may be merkleized or not.
@@ -225,25 +268,32 @@ data Case a
   | MerkleizedCase Action BuiltinByteString
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
 
+makeIsDataIndexed ''Case [('Case, 0), ('MerkleizedCase, 1)]
+
 -- | Extract the @Action@ from a @Case@.
 getAction :: Case a -> Action
 getAction (Case action _) = action
 getAction (MerkleizedCase action _) = action
+{-# INLINEABLE getAction #-}
 
--- | Marlowe has six ways of building contracts.
---   Five of these – 'Pay', 'Let', 'If', 'When' and 'Assert' –
---   build a complex contract from simpler contracts, and the sixth, 'Close',
---   is a simple contract.
---   At each step of execution, as well as returning a new state and continuation contract,
---   it is possible that effects – payments – and warnings can be generated too.
-data Contract
-  = Close
-  | Pay AccountId Payee Token (Value Observation) Contract
-  | If Observation Contract Contract
-  | When [Case Contract] Timeout Contract
-  | Let ValueId (Value Observation) Contract
-  | Assert Observation Contract
-  deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
+asData
+  [d|
+    -- \| Marlowe has six ways of building contracts.
+    --   Five of these – 'Pay', 'Let', 'If', 'When' and 'Assert' –
+    --   build a complex contract from simpler contracts, and the sixth, 'Close',
+    --   is a simple contract.
+    --   At each step of execution, as well as returning a new state and continuation contract,
+    --   it is possible that effects – payments – and warnings can be generated too.
+    data Contract
+      = Close
+      | Pay AccountId Payee Token (Value Observation) Contract
+      | If Observation Contract Contract
+      | When [Case Contract] Timeout Contract
+      | Let ValueId (Value Observation) Contract
+      | Assert Observation Contract
+      deriving stock (Generic, Data)
+      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
+    |]
 
 -- | Marlowe contract internal state. Stored in a /Datum/ of a transaction output.
 data State = State
@@ -253,6 +303,8 @@ data State = State
   , minTime :: POSIXTime
   }
   deriving stock (Haskell.Show, Haskell.Eq, Generic)
+
+makeIsDataIndexed ''State [('State, 0)]
 
 -- | Execution environment. Contains a time interval of a transaction.
 newtype Environment = Environment {timeInterval :: TimeInterval}
@@ -265,6 +317,8 @@ data InputContent
   | INotify
   deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
+makeIsDataIndexed ''InputContent [('IDeposit, 0), ('IChoice, 1), ('INotify, 2)]
+
 -- | Input to a contract, which may include the merkleized continuation
 --   of the contract and its hash.
 data Input
@@ -272,10 +326,13 @@ data Input
   | MerkleizedInput InputContent BuiltinByteString Contract
   deriving stock (Haskell.Show, Haskell.Eq, Generic)
 
+makeIsDataIndexed ''Input [('NormalInput, 0), ('MerkleizedInput, 1)]
+
 -- | Extract the content of input.
 getInputContent :: Input -> InputContent
 getInputContent (NormalInput inputContent) = inputContent
 getInputContent (MerkleizedInput inputContent _ _) = inputContent
+{-# INLINEABLE getInputContent #-}
 
 -- | Time interval errors.
 --   'InvalidInterval' means @slotStart > slotEnd@, and
@@ -302,10 +359,12 @@ emptyState sn =
     , boundValues = Map.empty
     , minTime = sn
     }
+{-# INLINEABLE emptyState #-}
 
 -- | Check if a 'num' is within a list of inclusive bounds.
 inBounds :: ChosenNum -> [Bound] -> Bool
 inBounds num = any (\(Bound l u) -> num >= l && num <= u)
+{-# INLINEABLE inBounds #-}
 
 instance Eq Party where
   {-# INLINEABLE (==) #-}
@@ -452,66 +511,17 @@ instance Eq State where
 
 -- Lifting data types to Plutus Core
 makeLift ''Party
-makeIsDataIndexed ''Party [('Address, 0), ('Role, 1)]
 makeLift ''ChoiceId
-makeIsDataIndexed ''ChoiceId [('ChoiceId, 0)]
 makeLift ''Token
-makeIsDataIndexed ''Token [('Token, 0)]
 makeLift ''ValueId
-makeIsDataIndexed ''ValueId [('ValueId, 0)]
 makeLift ''Value
-makeIsDataIndexed
-  ''Value
-  [ ('AvailableMoney, 0)
-  , ('Constant, 1)
-  , ('NegValue, 2)
-  , ('AddValue, 3)
-  , ('SubValue, 4)
-  , ('MulValue, 5)
-  , ('DivValue, 6)
-  , ('ChoiceValue, 7)
-  , ('TimeIntervalStart, 8)
-  , ('TimeIntervalEnd, 9)
-  , ('UseValue, 10)
-  , ('Cond, 11)
-  ]
 makeLift ''Observation
-makeIsDataIndexed
-  ''Observation
-  [ ('AndObs, 0)
-  , ('OrObs, 1)
-  , ('NotObs, 2)
-  , ('ChoseSomething, 3)
-  , ('ValueGE, 4)
-  , ('ValueGT, 5)
-  , ('ValueLT, 6)
-  , ('ValueLE, 7)
-  , ('ValueEQ, 8)
-  , ('TrueObs, 9)
-  , ('FalseObs, 10)
-  ]
 makeLift ''Bound
-makeIsDataIndexed ''Bound [('Bound, 0)]
 makeLift ''Action
-makeIsDataIndexed ''Action [('Deposit, 0), ('Choice, 1), ('Notify, 2)]
 makeLift ''Case
-makeIsDataIndexed ''Case [('Case, 0), ('MerkleizedCase, 1)]
 makeLift ''Payee
-makeIsDataIndexed ''Payee [('Account, 0), ('Party, 1)]
 makeLift ''Contract
-makeIsDataIndexed
-  ''Contract
-  [ ('Close, 0)
-  , ('Pay, 1)
-  , ('If, 2)
-  , ('When, 3)
-  , ('Let, 4)
-  , ('Assert, 5)
-  ]
 makeLift ''State
-makeIsDataIndexed ''State [('State, 0)]
 makeLift ''Environment
 makeLift ''InputContent
-makeIsDataIndexed ''InputContent [('IDeposit, 0), ('IChoice, 1), ('INotify, 2)]
 makeLift ''Input
-makeIsDataIndexed ''Input [('NormalInput, 0), ('MerkleizedInput, 1)]
