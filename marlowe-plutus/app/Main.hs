@@ -26,6 +26,7 @@ import qualified Benchmark.Marlowe.Semantics as Semantics (
   validatorHash,
   writeUPLC,
  )
+import qualified Benchmark.Marlowe.Semantics.Pretty as Semantics (writeBenchmarks)
 import qualified Data.ByteString as BS (writeFile)
 import qualified Data.ByteString.Base16 as B16 (encode)
 
@@ -59,6 +60,7 @@ main =
 
     -- Read the semantics benchmarks.
     benchmarks <- either error id <$> Semantics.benchmarks
+    Semantics.writeBenchmarks (dir </> "benchmarks" </> "semantics") benchmarks
 
     -- Write the tabulation of semantics benchmark results.
     writeFile (out </> "marlowe-semantics.tsv")

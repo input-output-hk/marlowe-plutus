@@ -34,6 +34,11 @@ flag trace-plutus
   default:     False
   manual:      True
 
+flag profile-plutus
+  description: Enable Plutus profiling for Marlowe validators.
+  default:     False
+  manual:      True
+
 flag check-preconditions
   description:
     Validator checks whether preconditions are satisfied for the Marlowe state.
@@ -94,18 +99,18 @@ common lang
     StandaloneDeriving
 
   ghc-options:
-    -Wall -Wnoncanonical-monad-instances -Wincomplete-uni-patterns
-    -Wincomplete-record-updates -Wredundant-constraints -Widentities
-    -Werror
+    -fforce-recomp -Wall -Wnoncanonical-monad-instances
+    -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wredundant-constraints -Widentities -Werror
+
+  if (flag(profile-plutus) || flag(profile-plutus))
+    ghc-options: -fplugin-opt PlutusTx.Plugin:conservative-optimisation
+
+  if flag(profile-plutus)
+    ghc-options: -fplugin-opt PlutusTx.Plugin:profile-all
 
   if flag(trace-plutus)
     cpp-options: -DTRACE_PLUTUS
-    ghc-options:
-      -fforce-recomp -fplugin-opt
-      PlutusTx.Plugin:conservative-optimisation
-
-  else
-    ghc-options: -fforce-recomp -fplugin-opt PlutusTx.Plugin:remove-trace
 
   if flag(check-preconditions)
     cpp-options: -DCHECK_PRECONDITIONS
@@ -167,11 +172,13 @@ executable marlowe-validators
     Benchmark.Marlowe
     Benchmark.Marlowe.RolePayout
     Benchmark.Marlowe.Semantics
+    Benchmark.Marlowe.Semantics.Pretty
     Benchmark.Marlowe.Types
     Benchmark.Marlowe.Util
     Paths_marlowe_plutus
 
   build-depends:
+    , aeson
     , base
     , base16-bytestring
     , bytestring
@@ -187,6 +194,7 @@ executable marlowe-validators
     , plutus-tx
     , serialise
     , text
+    , yaml
 
   ghc-options:    -threaded
 
