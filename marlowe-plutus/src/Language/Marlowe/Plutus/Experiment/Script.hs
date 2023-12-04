@@ -122,6 +122,7 @@ import PlutusTx.Prelude as PlutusTxPrelude (
   ($),
   (&&),
   (.),
+  (>=),
   (/=),
   (||),
  )
@@ -477,12 +478,21 @@ mkMarloweValidator
             -- a single output. The flexibility of multiple outputs accommodates wallet-related practicalities such as the change and
             -- the return of the role token being in separate UTxOs in situations where a contract is also paying to the address
             -- where that change and that role token are sent.
-            Address _ address -> traceIfFalse "p" $ value `Val.leq` valuePaidToAddress address -- At least sufficient value paid.
+            Address _ address -> traceIfFalse "p" $ valuePaidToAddress address `geqSingleton` value -- At least sufficient value paid.
             Role role ->
               let hsh = findDatumHash' (rolesCurrency, role)
                   addr = Address.scriptHashAddress rolePayoutValidatorHash
                in -- Some output must have the correct value and datum to the role-payout address.
-                  traceIfFalse "r" $ any (checkScriptOutput Val.geq addr hsh value) allOutputs
+                  traceIfFalse "r" $ any (checkScriptOutput geqSingleton addr hsh value) allOutputs
+
+      -- Check that a multiasset value is not less than another value, optimized for singletons.
+      -- Note that the semantics of this function differ from `geq` in cases where the first
+      -- argument contains negative quantities; however, this never occurs in values from UTxOs.
+      geqSingleton :: Val.Value -> Val.Value -> Bool
+      geqSingleton multi single =
+        case Val.flattenValue single of
+          [(c, t, a)] -> Val.valueOf multi c t >= a  -- The second value was a singleton.
+          _ -> multi `Val.geq` single                -- The second value wasn't a singleton.
 
       -- The key for the address must have signed.
       txSignedByAddress :: Ledger.Address -> Bool
