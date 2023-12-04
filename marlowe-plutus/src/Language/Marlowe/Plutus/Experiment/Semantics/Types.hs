@@ -45,7 +45,7 @@ module Language.Marlowe.Plutus.Experiment.Semantics.Types (
   Timeout,
 
   -- * Contract Types
-  Action (..),
+  Action (Deposit, Choice, Notify),
   Bound (..),
   Case (..),
   ChoiceId (..),
@@ -229,24 +229,26 @@ data Bound = Bound Integer Integer
 
 makeIsDataIndexed ''Bound [('Bound, 0)]
 
--- | Actions happen at particular points during execution.
---   Three kinds of action are possible:
---
---   * A @Deposit n p v@ makes a deposit of value @v@ into account @n@ belonging to party @p@.
---
---   * A choice is made for a particular id with a list of bounds on the values that are acceptable.
---     For example, @[(0, 0), (3, 5]@ offers the choice of one of 0, 3, 4 and 5.
---
---   * The contract is notified that a particular observation be made.
---     Typically this would be done by one of the parties,
---     or one of their wallets acting automatically.
-data Action
-  = Deposit AccountId Party Token (Value Observation)
-  | Choice ChoiceId [Bound]
-  | Notify Observation
-  deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
-
-makeIsDataIndexed ''Action [('Deposit, 0), ('Choice, 1), ('Notify, 2)]
+asData
+  [d|
+    -- \| Actions happen at particular points during execution.
+    --   Three kinds of action are possible:
+    --
+    --   * A @Deposit n p v@ makes a deposit of value @v@ into account @n@ belonging to party @p@.
+    --
+    --   * A choice is made for a particular id with a list of bounds on the values that are acceptable.
+    --     For example, @[(0, 0), (3, 5]@ offers the choice of one of 0, 3, 4 and 5.
+    --
+    --   * The contract is notified that a particular observation be made.
+    --     Typically this would be done by one of the parties,
+    --     or one of their wallets acting automatically.
+    data Action
+      = Deposit AccountId Party Token (Value Observation)
+      | Choice ChoiceId [Bound]
+      | Notify Observation
+      deriving stock (Generic, Data)
+      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
+    |]
 
 -- | A payment can be made to one of the parties to the contract,
 --   or to one of the accounts of the contract,
