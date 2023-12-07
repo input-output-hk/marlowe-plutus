@@ -1,561 +1,787 @@
-{- FOURMOLU_DISABLE -}
-
-{-# LANGUAGE CPP #-}
+-----------------------------------------------------------------------------
+--
+-- Module      :  $Headers
+-- License     :  Apache 2.0
+--
+-- Stability   :  Experimental
+-- Portability :  Portable
+--
+-----------------------------------------------------------------------------
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
-{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:defer-errors #-}
-{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
+{-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
+-- A big hammer, but it helps.
+{-# OPTIONS_GHC -fno-specialise #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- | Marlowe semantics validator.
+{- HLINT ignore "Avoid restricted function" -}
+
+-- | = Marlowe: financial contracts domain specific language for blockchain
+--
+--   Here we present a reference implementation of Marlowe, domain-specific language targeted at
+--   the execution of financial contracts in the style of Peyton Jones et al
+--   on Cardano.
+--
+--   This is the Haskell implementation of Marlowe semantics for Cardano.
+--
+--   == Semantics
+--
+--   Semantics is based on <https://github.com/input-output-hk/marlowe/blob/stable/src/Semantics.hs>
+--
+--   Marlowe Contract execution is a chain of transactions,
+--   where remaining contract and its state is passed through /Datum/,
+--   and actions (i.e. /Choices/) are passed as
+--   /Redeemer Script/
+--
+--   /Validation Script/ is always the same Marlowe interpreter implementation, available below.
 module Language.Marlowe.Plutus.Semantics (
-  -- * Validation
-  marloweValidator,
-  marloweValidatorBytes,
-  marloweValidatorHash,
-  mkMarloweValidator,
+  -- * Semantics
+  MarloweData (..),
+  MarloweParams (..),
+  Payment (..),
+  TransactionInput (..),
+  TransactionOutput (..),
+  computeTransaction,
+  playTrace,
+
+  -- * Supporting Functions
+  addMoneyToAccount,
+  applyAction,
+  applyAllInputs,
+  applyCases,
+  applyInput,
+  convertReduceWarnings,
+  evalObservation,
+  evalValue,
+  fixInterval,
+  getContinuation,
+  giveMoney,
+  moneyInAccount,
+  playTraceAux,
+  reduceContractStep,
+  reduceContractUntilQuiescent,
+  refundOne,
+  updateMoneyInAccount,
+
+  -- * Supporting Types
+  ApplyAction (..),
+  ApplyAllResult (..),
+  ApplyResult (..),
+  ApplyWarning (..),
+  ReduceEffect (..),
+  ReduceResult (..),
+  ReduceStepResult (..),
+  ReduceWarning (..),
+  TransactionError (..),
+  TransactionWarning (..),
+
+  -- * Utility Functions
+  allBalancesArePositive,
+  contractLifespanUpperBound,
+  isClose,
+  notClose,
+  paymentMoney,
+  totalBalance,
 ) where
 
-#ifdef PLUTUS_ASDATA
-import Language.Marlowe.Plutus.AsData.ScriptTypes (MarloweInput, MarloweTxInput (..))
-import Language.Marlowe.Plutus.AsData.Semantics as Semantics (
-  MarloweData (..),
-  MarloweParams (MarloweParams, rolesCurrency),
-  Payment (..),
-  TransactionError (
-    TEAmbiguousTimeIntervalError,
-    TEApplyNoMatchError,
-    TEHashMismatch,
-    TEIntervalError,
-    TEUselessTransaction
-  ),
-  TransactionInput (TransactionInput, txInputs, txInterval),
-  TransactionOutput (
-    Error,
-    TransactionOutput,
-    txOutContract,
-    txOutPayments,
-    txOutState
-  ),
-  computeTransaction,
-  totalBalance,
- )
-import Language.Marlowe.Plutus.AsData.Semantics.Types as Semantics (
-  ChoiceId (ChoiceId),
-  Contract (Close),
-  CurrencySymbol,
+import GHC.Generics
+import Language.Marlowe.Plutus.Semantics.Types (
+  AccountId,
+  Accounts,
+  Action (..),
+  Case (..),
+  Contract (..),
+  Environment (..),
   Input (..),
   InputContent (..),
-  IntervalError (IntervalInPastError, InvalidInterval),
-  Party (..),
-  Payee (Account, Party),
+  IntervalError (..),
+  IntervalResult (..),
+  Money,
+  Observation (..),
+  Party,
+  Payee (..),
   State (..),
-  Token (Token),
-  TokenName,
+  TimeInterval,
+  Token (..),
+  Value (..),
+  ValueId,
+  emptyState,
+  getAction,
   getInputContent,
+  inBounds,
  )
-#else
-import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
-import Language.Marlowe.Core.V1.Semantics as Semantics (
-  MarloweData (..),
-  MarloweParams (MarloweParams, rolesCurrency),
-  Payment (..),
-  TransactionError (
-    TEAmbiguousTimeIntervalError,
-    TEApplyNoMatchError,
-    TEHashMismatch,
-    TEIntervalError,
-    TEUselessTransaction
-  ),
-  TransactionInput (TransactionInput, txInputs, txInterval),
-  TransactionOutput (
-    Error,
-    TransactionOutput,
-    txOutContract,
-    txOutPayments,
-    txOutState
-  ),
-  computeTransaction,
-  totalBalance,
- )
-import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
-  ChoiceId (ChoiceId),
-  Contract (Close),
-  CurrencySymbol,
-  Input (..),
-  InputContent (..),
-  IntervalError (IntervalInPastError, InvalidInterval),
-  Party (..),
-  Payee (Account, Party),
-  State (..),
-  Token (Token),
-  TokenName,
-  getInputContent,
- )
-#endif
-
-import PlutusCore.Version (plcVersion100)
-import PlutusLedgerApi.V2 (
-  Credential (..),
-  Datum (Datum),
-  DatumHash (DatumHash),
-  Extended (..),
-  Interval (..),
-  LowerBound (..),
-  POSIXTime (..),
-  POSIXTimeRange,
-  ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
-  ScriptHash (..),
-  ScriptPurpose (Spending),
-  SerialisedScript,
-  TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
-  TxInfo (TxInfo, txInfoInputs, txInfoOutputs, txInfoValidRange),
-  UnsafeFromData (..),
-  UpperBound (..),
-  serialiseCompiledCode,
- )
-import PlutusLedgerApi.V2.Contexts (findDatum, findDatumHash, txSignedBy, valueSpent)
-import PlutusLedgerApi.V2.Tx (OutputDatum (OutputDatumHash), TxOut (TxOut, txOutAddress, txOutDatum, txOutValue))
-import PlutusTx (CompiledCode)
-import PlutusTx.Plugin ()
-
-import PlutusLedgerApi.V1.Address as Address (scriptHashAddress)
-import PlutusTx.Prelude as PlutusTxPrelude (
+import PlutusLedgerApi.V2 (CurrencySymbol, POSIXTime (..))
+import qualified PlutusLedgerApi.V2 as Val
+import PlutusTx (makeIsDataIndexed)
+import qualified PlutusTx.AssocMap as Map
+import qualified PlutusTx.Builtins as Builtins
+import PlutusTx.Lift (makeLift)
+import PlutusTx.Prelude (
   AdditiveGroup ((-)),
-  AdditiveMonoid (zero),
   AdditiveSemigroup ((+)),
   Bool (..),
-  BuiltinData,
-  BuiltinString,
-  Enum (fromEnum),
   Eq (..),
-  Functor (fmap),
-#ifdef CHECK_POSITIVE_BALANCES
   Integer,
-#endif
   Maybe (..),
-  Ord ((>)),
-  Semigroup ((<>)),
+  MultiplicativeSemigroup ((*)),
+  Ord (max, min, (<), (<=), (>), (>=)),
   all,
-  any,
-  check,
-#if defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS)
-  elem,
-#endif
-  filter,
-  find,
   foldMap,
-  null,
+  foldr,
+  fst,
+  negate,
+  not,
   otherwise,
+  reverse,
   snd,
-  toBuiltin,
-  traceError,
-  traceIfFalse,
   ($),
   (&&),
-  (.),
-  (/=),
+  (++),
   (||),
  )
-
-import qualified Cardano.Crypto.Hash as Hash
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Short as SBS
-import qualified PlutusLedgerApi.V1.Value as Val
-import qualified PlutusLedgerApi.V2 as Ledger (Address (Address))
-import qualified PlutusTx
-import qualified PlutusTx.AssocMap as AssocMap
 import qualified Prelude as Haskell
 
-{-# INLINEABLE rolePayoutValidator #-}
+-- Functions that used in Plutus Core must be inlineable,
+-- so their code is available for PlutusTx compiler.
+{-# INLINEABLE fixInterval #-}
+{-# INLINEABLE evalValue #-}
+{-# INLINEABLE evalObservation #-}
+{-# INLINEABLE refundOne #-}
+{-# INLINEABLE moneyInAccount #-}
+{-# INLINEABLE updateMoneyInAccount #-}
+{-# INLINEABLE addMoneyToAccount #-}
+{-# INLINEABLE giveMoney #-}
+{-# INLINEABLE reduceContractStep #-}
+{-# INLINEABLE reduceContractUntilQuiescent #-}
+{-# INLINEABLE applyAction #-}
+{-# INLINEABLE getContinuation #-}
+{-# INLINEABLE applyCases #-}
+{-# INLINEABLE applyInput #-}
+{-# INLINEABLE convertReduceWarnings #-}
+{-# INLINEABLE applyAllInputs #-}
+{-# INLINEABLE isClose #-}
+{-# INLINEABLE notClose #-}
+{-# INLINEABLE computeTransaction #-}
+{-# INLINEABLE contractLifespanUpperBound #-}
+{-# INLINEABLE totalBalance #-}
 
--- | The Marlowe payout validator.
-rolePayoutValidator :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-rolePayoutValidator =
-  $$(PlutusTx.compile [||rolePayoutValidator'||])
-  where
-    rolePayoutValidator' :: BuiltinData -> BuiltinData -> BuiltinData -> ()
-    rolePayoutValidator' d r p =
-      check
-        $ mkRolePayoutValidator
-          (unsafeFromBuiltinData d)
-          (unsafeFromBuiltinData r)
-          (unsafeFromBuiltinData p)
+-- | Payment occurs during 'Pay' contract evaluation, and
+--     when positive balances are payed out on contract closure.
+data Payment = Payment AccountId Payee Token Integer
+  deriving stock (Haskell.Eq, Generic, Haskell.Show)
 
--- | The Marlowe payout validator.
-mkRolePayoutValidator
-  :: (CurrencySymbol, TokenName)
-  -- ^ The datum is the currency symbol and role name for the payout.
-  -> ()
-  -- ^ No redeemer is required.
-  -> ScriptContext
-  -- ^ The script context.
-  -> Bool
-  -- ^ Whether the transaction validated.
-mkRolePayoutValidator (currency, role) _ ctx =
-  -- The role token for the correct currency must be present.
-  -- [Marlowe-Cardano Specification: "17. Payment authorized".]
-  Val.singleton currency role 1 `Val.leq` valueSpent (scriptContextTxInfo ctx)
+-- | Extract the money value from a payment.
+paymentMoney :: Payment -> Money
+paymentMoney (Payment _ _ (Token cur tok) amt) = Val.singleton cur tok amt
 
--- | Compute the hash of a script.
-hashScript :: CompiledCode fn -> ScriptHash
-hashScript =
-  ScriptHash
-    . toBuiltin
-    . (Hash.hashToBytes :: Hash.Hash Hash.Blake2b_224 SBS.ShortByteString -> BS.ByteString)
-    . Hash.hashWith (BS.append "\x02" . SBS.fromShort) -- For Plutus V2.
-    . serialiseCompiledCode
+-- | Effect of 'reduceContractStep' computation
+data ReduceEffect
+  = ReduceWithPayment Payment
+  | ReduceNoPayment
+  deriving stock (Haskell.Show)
 
--- | The hash of the Marlowe payout validator.
-rolePayoutValidatorHash :: ScriptHash
-rolePayoutValidatorHash = hashScript rolePayoutValidator
+-- | Warning during 'reduceContractStep'
+data ReduceWarning
+  = ReduceNoWarning
+  | ReduceNonPositivePay AccountId Payee Token Integer
+  | ReducePartialPay AccountId Payee Token Integer Integer
+  | --                                      ^ src    ^ dest       ^ paid ^ expected
+    ReduceShadowing ValueId Integer Integer
+  | --                                     oldVal ^  newVal ^
+    ReduceAssertionFailed
+  deriving stock (Haskell.Show)
 
--- | The serialisation of the Marlowe payout validator.
-rolePayoutValidatorBytes :: SerialisedScript
-rolePayoutValidatorBytes = serialiseCompiledCode rolePayoutValidator
+-- | Result of 'reduceContractStep'
+data ReduceStepResult
+  = Reduced ReduceWarning ReduceEffect State Contract
+  | NotReduced
+  | AmbiguousTimeIntervalReductionError
+  deriving stock (Haskell.Show)
 
-{-# INLINEABLE closeInterval #-}
+-- | Result of 'reduceContractUntilQuiescent'
+data ReduceResult
+  = ContractQuiescent Bool [ReduceWarning] [Payment] State Contract
+  | RRAmbiguousTimeIntervalError
+  deriving stock (Haskell.Show)
 
--- | Convert a Plutus POSIX time range into the closed interval needed by Marlowe semantics.
-closeInterval :: POSIXTimeRange -> Maybe (POSIXTime, POSIXTime)
-closeInterval (Interval (LowerBound (Finite (POSIXTime l)) lc) (UpperBound (Finite (POSIXTime h)) hc)) =
-  Just
-    ( POSIXTime $ l + 1 - fromEnum lc -- Add one millisecond if the interval was open.
-    , POSIXTime $ h - 1 + fromEnum hc -- Subtract one millisecond if the interval was open.
+-- | Warning of 'applyCases'
+data ApplyWarning
+  = ApplyNoWarning
+  | ApplyNonPositiveDeposit Party AccountId Token Integer
+  deriving stock (Haskell.Show)
+
+-- | Result of 'applyCases'
+data ApplyResult
+  = Applied ApplyWarning State Contract
+  | ApplyNoMatchError
+  | ApplyHashMismatch
+  deriving stock (Haskell.Show)
+
+-- | Result of 'applyAllInputs'
+data ApplyAllResult
+  = ApplyAllSuccess Bool [TransactionWarning] [Payment] State Contract
+  | ApplyAllNoMatchError
+  | ApplyAllAmbiguousTimeIntervalError
+  | ApplyAllHashMismatch
+  deriving stock (Haskell.Show)
+
+-- | Warnings during transaction computation
+data TransactionWarning
+  = TransactionNonPositiveDeposit Party AccountId Token Integer
+  | TransactionNonPositivePay AccountId Payee Token Integer
+  | TransactionPartialPay AccountId Payee Token Integer Integer
+  | --                                                 ^ src    ^ dest     ^ paid   ^ expected
+    TransactionShadowing ValueId Integer Integer
+  | --                                                 oldVal ^  newVal ^
+    TransactionAssertionFailed
+  deriving stock (Haskell.Show, Generic, Haskell.Eq)
+
+-- | Transaction error
+data TransactionError
+  = TEAmbiguousTimeIntervalError
+  | TEApplyNoMatchError
+  | TEIntervalError IntervalError
+  | TEUselessTransaction
+  | TEHashMismatch
+  deriving stock (Haskell.Show, Generic, Haskell.Eq)
+
+-- | Marlowe transaction input.
+data TransactionInput = TransactionInput
+  { txInterval :: TimeInterval
+  , txInputs :: [Input]
+  }
+  deriving stock (Haskell.Show, Haskell.Eq, Generic)
+
+-- | Marlowe transaction output.
+data TransactionOutput
+  = TransactionOutput
+      { txOutWarnings :: [TransactionWarning]
+      , txOutPayments :: [Payment]
+      , txOutState :: State
+      , txOutContract :: Contract
+      }
+  | Error TransactionError
+  deriving stock (Haskell.Eq, Generic, Haskell.Show)
+
+-- | This data type is a content of a contract's /Datum/
+data MarloweData = MarloweData
+  { marloweParams :: MarloweParams
+  , marloweState :: State
+  , marloweContract :: Contract
+  }
+  deriving stock (Haskell.Show, Haskell.Eq, Generic)
+
+-- | Parameters constant during the course of a contract.
+newtype MarloweParams = MarloweParams {rolesCurrency :: CurrencySymbol}
+  deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
+
+-- | Checks 'interval' and trims it if necessary.
+fixInterval :: TimeInterval -> State -> IntervalResult
+fixInterval interval state =
+  case interval of
+    (low, high)
+      | high < low -> IntervalError (InvalidInterval interval)
+      | otherwise ->
+          let curMinTime = minTime state
+              -- newLow is both new "low" and new "minTime" (the lower bound for slotNum)
+              newLow = max low curMinTime
+              -- We know high is greater or equal than newLow (prove)
+              curInterval = (newLow, high)
+              env = Environment{timeInterval = curInterval}
+              newState = state{minTime = newLow}
+           in if high < curMinTime
+                then IntervalError (IntervalInPastError curMinTime interval)
+                else IntervalTrimmed env newState
+
+-- | Evaluates @Value@ given current @State@ and @Environment@.
+evalValue :: Environment -> State -> Value Observation -> Integer
+evalValue env state value =
+  let eval = evalValue env state
+   in case value of
+        AvailableMoney accId token -> moneyInAccount accId token (accounts state)
+        Constant integer -> integer
+        NegValue val -> negate (eval val)
+        AddValue lhs rhs -> eval lhs + eval rhs
+        SubValue lhs rhs -> eval lhs - eval rhs
+        MulValue lhs rhs -> eval lhs * eval rhs
+        DivValue lhs rhs ->
+          let n = eval lhs
+              d = eval rhs
+           in if d == 0
+                then 0
+                else n `Builtins.quotientInteger` d
+        ChoiceValue choiceId ->
+          -- SCP-5126: Given the precondition that `choices` contains no
+          -- duplicate entries, this lookup behaves identically to
+          -- Marlowe's Isabelle semantics given the precondition that
+          -- the initial state's `choices` in Isabelle was sorted and
+          -- did not contain duplicate entries.
+          case Map.lookup choiceId (choices state) of
+            Just x -> x
+            Nothing -> 0
+        TimeIntervalStart -> getPOSIXTime (fst (timeInterval env))
+        TimeIntervalEnd -> getPOSIXTime (snd (timeInterval env))
+        UseValue valId ->
+          -- SCP-5126: Given the precondition that `boundValues` contains
+          -- no duplicate entries, this lookup behaves identically to
+          -- Marlowe's Isabelle semantics given the precondition that
+          -- the initial state's `boundValues` in Isabelle was sorted
+          -- and did not contain duplicate entries.
+          case Map.lookup valId (boundValues state) of
+            Just x -> x
+            Nothing -> 0
+        Cond cond thn els -> if evalObservation env state cond then eval thn else eval els
+
+-- | Evaluate 'Observation' to 'Bool'.
+evalObservation :: Environment -> State -> Observation -> Bool
+evalObservation env state obs =
+  let evalObs = evalObservation env state
+      evalVal = evalValue env state
+   in case obs of
+        AndObs lhs rhs -> evalObs lhs && evalObs rhs
+        OrObs lhs rhs -> evalObs lhs || evalObs rhs
+        NotObs subObs -> not (evalObs subObs)
+        -- SCP-5126: Given the precondition that `choices` contains no
+        -- duplicate entries, this membership test behaves identically
+        -- to Marlowe's Isabelle semantics given the precondition that
+        -- the initial state's `choices` in Isabelle was sorted and did
+        -- not contain duplicate entries.
+        ChoseSomething choiceId -> choiceId `Map.member` choices state
+        ValueGE lhs rhs -> evalVal lhs >= evalVal rhs
+        ValueGT lhs rhs -> evalVal lhs > evalVal rhs
+        ValueLT lhs rhs -> evalVal lhs < evalVal rhs
+        ValueLE lhs rhs -> evalVal lhs <= evalVal rhs
+        ValueEQ lhs rhs -> evalVal lhs == evalVal rhs
+        TrueObs -> True
+        FalseObs -> False
+
+-- | Pick the first account with money in it, discarding any accounts prior to that if they have a non-positive balance.
+refundOne :: Accounts -> Maybe ((Party, Token, Integer), Accounts)
+refundOne accounts = case Map.toList accounts of
+  [] -> Nothing
+  -- SCP-5126: The return value of this function differs from
+  -- Isabelle semantics in that it returns the least-recently
+  -- added account-token combination rather than the first
+  -- lexicographically ordered one. Also, the sequence
+  -- `Map.fromList . tail . Map.toList` preserves the
+  -- invariants of order and non-duplication.
+  ((accId, token), balance) : rest ->
+    if balance > 0
+      then Just ((accId, token, balance), Map.fromList rest)
+      else refundOne (Map.fromList rest)
+
+-- | Obtains the amount of money available an account.
+moneyInAccount :: AccountId -> Token -> Accounts -> Integer
+moneyInAccount accId token accounts =
+  -- SCP-5126: Given the precondition that `accounts` contains
+  -- no duplicate entries, this lookup behaves identically to
+  -- Marlowe's Isabelle semantics given the precondition that
+  -- the initial state's `accounts` in Isabelle was sorted and
+  -- did not contain duplicate entries.
+  case Map.lookup (accId, token) accounts of
+    Just x -> x
+    Nothing -> 0
+
+-- | Sets the amount of money available in an account.
+updateMoneyInAccount :: AccountId -> Token -> Integer -> Accounts -> Accounts
+updateMoneyInAccount accId token amount =
+  -- SCP-5126: Given the precondition that `accounts` contains
+  -- no duplicate entries, this deletion or insertion behaves
+  -- identically (aside from internal ordering) to Marlowe's
+  -- Isabelle semantics given the precondition that the initial
+  -- state's `accounts` in Isabelle was sorted and did not
+  -- contain duplicate entries.
+  if amount <= 0 then Map.delete (accId, token) else Map.insert (accId, token) amount
+
+-- | Add the given amount of money to an account (only if it is positive).
+--   Return the updated Map.
+addMoneyToAccount :: AccountId -> Token -> Integer -> Accounts -> Accounts
+addMoneyToAccount accId token amount accounts =
+  let balance = moneyInAccount accId token accounts
+      newBalance = balance + amount
+   in if amount <= 0
+        then accounts
+        else updateMoneyInAccount accId token newBalance accounts
+
+-- | Gives the given amount of money to the given payee.
+--   Returns the appropriate effect and updated accounts.
+giveMoney :: AccountId -> Payee -> Token -> Integer -> Accounts -> (ReduceEffect, Accounts)
+giveMoney accountId payee token amount accounts =
+  let newAccounts = case payee of
+        Party _ -> accounts
+        Account accId -> addMoneyToAccount accId token amount accounts
+   in (ReduceWithPayment (Payment accountId payee token amount), newAccounts)
+
+-- | Carry a step of the contract with no inputs.
+reduceContractStep :: Environment -> State -> Contract -> ReduceStepResult
+reduceContractStep env state contract = case contract of
+  -- SCP-5126: Although `refundOne` refunds accounts-token combinations
+  -- in least-recently-added order and Isabelle semantics requires that
+  -- they be refunded in lexicographic order, `reduceContractUntilQuiescent`
+  -- ensures that the `Close` pattern will be executed until `accounts`
+  -- is empty. Thus, the net difference between the behavior here and the
+  -- Isabelle semantics is that the `ContractQuiescent` resulting from
+  -- `reduceContractUntilQuiescent` will contain payments in a different
+  -- order.
+  Close -> case refundOne (accounts state) of
+    Just ((party, token, amount), newAccounts) ->
+      let newState = state{accounts = newAccounts}
+       in Reduced ReduceNoWarning (ReduceWithPayment (Payment party (Party party) token amount)) newState Close
+    Nothing -> NotReduced
+  Pay accId payee tok val cont ->
+    let amountToPay = evalValue env state val
+     in if amountToPay <= 0
+          then
+            let warning = ReduceNonPositivePay accId payee tok amountToPay
+             in Reduced warning ReduceNoPayment state cont
+          else
+            let balance = moneyInAccount accId tok (accounts state)
+                paidAmount = min balance amountToPay
+                newBalance = balance - paidAmount
+                newAccs = updateMoneyInAccount accId tok newBalance (accounts state)
+                warning =
+                  if paidAmount < amountToPay
+                    then ReducePartialPay accId payee tok paidAmount amountToPay
+                    else ReduceNoWarning
+                (payment, finalAccs) = giveMoney accId payee tok paidAmount newAccs
+                newState = state{accounts = finalAccs}
+             in Reduced warning payment newState cont
+  If obs cont1 cont2 ->
+    let cont = if evalObservation env state obs then cont1 else cont2
+     in Reduced ReduceNoWarning ReduceNoPayment state cont
+  When _ timeout cont ->
+    let (startTime, endTime) = timeInterval env
+     in -- if timeout in future – do not reduce
+        if endTime < timeout
+          then NotReduced
+          else -- if timeout in the past – reduce to timeout continuation
+
+            if timeout <= startTime
+              then Reduced ReduceNoWarning ReduceNoPayment state cont
+              else -- if timeout in the time range – issue an ambiguity error
+                AmbiguousTimeIntervalReductionError
+  Let valId val cont ->
+    let evaluatedValue = evalValue env state val
+        boundVals = boundValues state
+        -- SCP-5126: Given the precondition that `boundValues` contains
+        -- no duplicate entries, this insertion behaves identically
+        -- (aside from internal ordering) to Marlowe's Isabelle semantics
+        -- given the precondition that the initial state's `boundValues`
+        -- in Isabelle was sorted and did not contain duplicate entries.
+        newState = state{boundValues = Map.insert valId evaluatedValue boundVals}
+        -- SCP-5126: Given the precondition that `boundValues` contains
+        -- no duplicate entries, this lookup behaves identically to
+        -- Marlowe's Isabelle semantics given the precondition that the
+        -- initial state's `boundValues` in Isabelle was sorted and did
+        -- not contain duplicate entries.
+        warn = case Map.lookup valId boundVals of
+          Just oldVal -> ReduceShadowing valId oldVal evaluatedValue
+          Nothing -> ReduceNoWarning
+     in Reduced warn ReduceNoPayment newState cont
+  Assert obs cont ->
+    let warning =
+          if evalObservation env state obs
+            then ReduceNoWarning
+            else ReduceAssertionFailed
+     in Reduced warning ReduceNoPayment state cont
+
+-- | Reduce a contract until it cannot be reduced more.
+reduceContractUntilQuiescent :: Environment -> State -> Contract -> ReduceResult
+reduceContractUntilQuiescent env state contract =
+  let reductionLoop
+        :: Bool -> Environment -> State -> Contract -> [ReduceWarning] -> [Payment] -> ReduceResult
+      reductionLoop reduced env state contract warnings payments =
+        case reduceContractStep env state contract of
+          Reduced warning effect newState cont ->
+            let newWarnings = case warning of
+                  ReduceNoWarning -> warnings
+                  _ -> warning : warnings
+                newPayments = case effect of
+                  ReduceWithPayment payment -> payment : payments
+                  ReduceNoPayment -> payments
+             in reductionLoop True env newState cont newWarnings newPayments
+          AmbiguousTimeIntervalReductionError -> RRAmbiguousTimeIntervalError
+          -- this is the last invocation of reductionLoop, so we can reverse lists
+          NotReduced -> ContractQuiescent reduced (reverse warnings) (reverse payments) state contract
+   in reductionLoop False env state contract [] []
+
+-- | Result of applying an action to a contract.
+data ApplyAction
+  = AppliedAction ApplyWarning State
+  | NotAppliedAction
+  deriving stock (Haskell.Show)
+
+-- | Try to apply a single input content to a single action.
+applyAction :: Environment -> State -> InputContent -> Action -> ApplyAction
+applyAction env state (IDeposit accId1 party1 tok1 amount) (Deposit accId2 party2 tok2 val) =
+  if accId1 == accId2 && party1 == party2 && tok1 == tok2 && amount == evalValue env state val
+    then
+      let warning =
+            if amount > 0
+              then ApplyNoWarning
+              else ApplyNonPositiveDeposit party2 accId2 tok2 amount
+          newAccounts = addMoneyToAccount accId1 tok1 amount (accounts state)
+          newState = state{accounts = newAccounts}
+       in AppliedAction warning newState
+    else NotAppliedAction
+applyAction _ state (IChoice choId1 choice) (Choice choId2 bounds) =
+  if choId1 == choId2 && inBounds choice bounds
+    then -- SCP-5126: Given the precondition that `choices` contains no
+    -- duplicate entries, this insertion behaves identically (aside
+    -- from internal ordering) to Marlowe's Isabelle semantics
+    -- given the precondition that the initial state's `choices`
+    -- in Isabelle was sorted and did not contain duplicate entries.
+
+      let newState = state{choices = Map.insert choId1 choice (choices state)}
+       in AppliedAction ApplyNoWarning newState
+    else NotAppliedAction
+applyAction env state INotify (Notify obs)
+  | evalObservation env state obs = AppliedAction ApplyNoWarning state
+applyAction _ _ _ _ = NotAppliedAction
+
+-- | Try to get a continuation from a pair of Input and Case.
+getContinuation :: Input -> Case Contract -> Maybe Contract
+getContinuation (NormalInput _) (Case _ continuation) = Just continuation
+getContinuation (MerkleizedInput _ inputContinuationHash continuation) (MerkleizedCase _ continuationHash) =
+  if inputContinuationHash == continuationHash
+    then Just continuation
+    else Nothing
+getContinuation _ _ = Nothing
+
+-- | Try to apply an input to a list of cases, accepting the first match.
+applyCases :: Environment -> State -> Input -> [Case Contract] -> ApplyResult
+applyCases env state input (headCase : tailCases) =
+  let inputContent = getInputContent input :: InputContent
+      action = getAction headCase :: Action
+      maybeContinuation = getContinuation input headCase :: Maybe Contract
+   in case applyAction env state inputContent action of
+        AppliedAction warning newState ->
+          -- Note that this differs from Isabelle semantics because
+          -- the Cardano semantics includes merkleization.
+          case maybeContinuation of
+            Just continuation -> Applied warning newState continuation
+            Nothing -> ApplyHashMismatch
+        NotAppliedAction -> applyCases env state input tailCases
+applyCases _ _ _ [] = ApplyNoMatchError
+
+-- | Apply a single @Input@ to a current contract.
+applyInput :: Environment -> State -> Input -> Contract -> ApplyResult
+applyInput env state input (When cases _ _) = applyCases env state input cases
+applyInput _ _ _ _ = ApplyNoMatchError
+
+-- | Propagate 'ReduceWarning' to 'TransactionWarning'.
+convertReduceWarnings :: [ReduceWarning] -> [TransactionWarning]
+convertReduceWarnings =
+  foldr
+    ( \warn acc -> case warn of -- Note that `foldr` is used here for efficiency, differing from Isabelle.
+        ReduceNoWarning -> acc
+        ReduceNonPositivePay accId payee tok amount ->
+          TransactionNonPositivePay accId payee tok amount : acc
+        ReducePartialPay accId payee tok paid expected ->
+          TransactionPartialPay accId payee tok paid expected : acc
+        ReduceShadowing valId oldVal newVal ->
+          TransactionShadowing valId oldVal newVal : acc
+        ReduceAssertionFailed ->
+          TransactionAssertionFailed : acc
     )
-closeInterval _ = Nothing
+    []
 
-{-# INLINEABLE mkMarloweValidator #-}
+-- | Apply a list of Inputs to the contract.
+applyAllInputs :: Environment -> State -> Contract -> [Input] -> ApplyAllResult
+applyAllInputs env state contract inputs =
+  let applyAllLoop
+        :: Bool
+        -> Environment
+        -> State
+        -> Contract
+        -> [Input]
+        -> [TransactionWarning]
+        -> [Payment]
+        -> ApplyAllResult
+      applyAllLoop contractChanged env state contract inputs warnings payments =
+        case reduceContractUntilQuiescent env state contract of
+          RRAmbiguousTimeIntervalError -> ApplyAllAmbiguousTimeIntervalError
+          ContractQuiescent reduced reduceWarns pays curState cont ->
+            let warnings' = warnings ++ convertReduceWarnings reduceWarns
+                payments' = payments ++ pays
+             in case inputs of
+                  [] ->
+                    ApplyAllSuccess
+                      (contractChanged || reduced)
+                      warnings'
+                      payments'
+                      curState
+                      cont
+                  (input : rest) -> case applyInput env curState input cont of
+                    Applied applyWarn newState cont' ->
+                      applyAllLoop
+                        True
+                        env
+                        newState
+                        cont'
+                        rest
+                        (warnings' ++ convertApplyWarning applyWarn)
+                        payments'
+                    ApplyNoMatchError -> ApplyAllNoMatchError
+                    ApplyHashMismatch -> ApplyAllHashMismatch
+   in applyAllLoop False env state contract inputs [] []
+  where
+    convertApplyWarning :: ApplyWarning -> [TransactionWarning]
+    convertApplyWarning warn =
+      case warn of
+        ApplyNoWarning -> []
+        ApplyNonPositiveDeposit party accId tok amount ->
+          [TransactionNonPositiveDeposit party accId tok amount]
 
--- | The Marlowe semantics validator.
-mkMarloweValidator
-  :: ScriptHash
-  -- ^ The hash of the corresponding Marlowe payout validator.
-  -> MarloweData
-  -- ^ The datum is the Marlowe parameters, state, and contract.
-  -> MarloweInput
-  -- ^ The redeemer is the list of inputs applied to the contract.
-  -> ScriptContext
-  -- ^ The script context.
-  -> Bool
-  -- ^ Whether the transaction validated.
-mkMarloweValidator
-  rolePayoutValidatorHash
-  MarloweData{..}
-  marloweTxInputs
-  ctx@ScriptContext{scriptContextTxInfo} = do
-    let scriptInValue = txOutValue $ txInInfoResolved ownInput
-    let interval =
-          -- Marlowe semantics require a closed interval, so we might adjust by one millisecond.
-          case closeInterval $ txInfoValidRange scriptContextTxInfo of
-            Just interval' -> interval'
-            Nothing -> traceError "a"
+-- | Check if a contract is just @Close@.
+isClose :: Contract -> Bool
+isClose Close = True
+isClose _ = False
 
-    -- Find Contract continuation in TxInfo datums by hash or fail with error.
-    let inputs = fmap marloweTxInputToInput marloweTxInputs
+-- | Check if a contract is not just @Close@.
+notClose :: Contract -> Bool
+notClose Close = False
+notClose _ = True
 
-    {-  We do not check that a transaction contains exact input payments.
-        We only require an evidence from a party, e.g. a signature for PubKey party,
-        or a spend of a 'party role' token.  This gives huge flexibility by allowing
-        parties to provide multiple inputs (either other contracts or P2PKH).
-        Then, we check scriptOutput to be correct.
-     -}
-    let inputContents = fmap getInputContent inputs
+-- | Try to compute outputs of a transaction given its inputs, a contract, and it's @State@
+computeTransaction :: TransactionInput -> State -> Contract -> TransactionOutput
+computeTransaction tx state contract =
+  let inputs = txInputs tx
+   in case fixInterval (txInterval tx) state of
+        IntervalTrimmed env fixState -> case applyAllInputs env fixState contract inputs of
+          ApplyAllSuccess reduced warnings payments newState cont ->
+            if not reduced && (notClose contract || (Map.null $ accounts state))
+              then Error TEUselessTransaction
+              else
+                TransactionOutput
+                  { txOutWarnings = warnings
+                  , txOutPayments = payments
+                  , txOutState = newState
+                  , txOutContract = cont
+                  }
+          ApplyAllNoMatchError -> Error TEApplyNoMatchError
+          ApplyAllAmbiguousTimeIntervalError -> Error TEAmbiguousTimeIntervalError
+          ApplyAllHashMismatch -> Error TEHashMismatch
+        IntervalError error -> Error (TEIntervalError error)
 
-    -- Check that the required signatures and role tokens are present.
-    -- [Marlowe-Cardano Specification: "Constraint 14. Inputs authorized".]
-    let inputsOk = allInputsAreAuthorized inputContents
-
-    -- [Marlowe-Cardano Specification: "Constraint 5. Input value from script".]
-    -- [Marlowe-Cardano Specification: "Constraint 13. Positive balances".]
-    -- [Marlowe-Cardano Specification: "Constraint 19. No duplicates".]
-    -- Check that the initial state obeys the Semantic's invariants.
-#ifdef CHECK_PRECONDITIONS
-    let preconditionsOk = checkState "i" scriptInValue marloweState
-#endif
-
-    -- [Marlowe-Cardano Specification: "Constraint 0. Input to semantics".]
-    -- Package the inputs to be applied in the semantics.
-    let txInput =
-          TransactionInput
-            { txInterval = interval
-            , txInputs = inputs
-            }
-
-    -- [Marlowe-Cardano Specification: "Constraint 7. Input state".]
-    -- [Marlowe-Cardano Specification: "Constraint 8. Input contract".]
-    -- The semantics computation operates on the state and contract from
-    -- the incoming datum.
-    let computedResult = computeTransaction txInput marloweState marloweContract
-    case computedResult of
-      TransactionOutput{txOutPayments, txOutState, txOutContract} -> do
-        -- [Marlowe-Cardano Specification: "Constraint 9. Marlowe parameters".]
-        -- [Marlowe-Cardano Specification: "Constraint 10. Output state".]
-        -- [Marlowe-Cardano Specification: "Constraint 11. Output contract."]
-        -- The output datum maintains the parameters and uses the state
-        -- and contract resulting from the semantics computation.
-        let marloweData =
-              MarloweData
-                { marloweParams = marloweParams
-                , marloweContract = txOutContract
-                , marloweState = txOutState
+-- | Run a set of inputs starting from the results of a transaction, reporting the new result.
+playTraceAux :: TransactionOutput -> [TransactionInput] -> TransactionOutput
+playTraceAux res [] = res
+playTraceAux
+  TransactionOutput
+    { txOutWarnings = warnings
+    , txOutPayments = payments
+    , txOutState = state
+    , txOutContract = cont
+    }
+  (h : t) =
+    let transRes = computeTransaction h state cont
+     in case transRes of
+          TransactionOutput{..} ->
+            playTraceAux
+              TransactionOutput
+                { txOutPayments = payments ++ txOutPayments
+                , txOutWarnings = warnings ++ txOutWarnings
+                , txOutState
+                , txOutContract
                 }
+              t
+          Error _ -> transRes
+playTraceAux err@(Error _) _ = err
 
-            -- Each party must receive as least as much value as the semantics specify.
-            -- [Marlowe-Cardano Specification: "Constraint 15. Sufficient payment."]
-            payoutsByParty = AssocMap.toList $ foldMap payoutByParty txOutPayments
-            payoutsOk = payoutConstraints payoutsByParty
+-- | Run a set of inputs starting from a contract and empty state, reporting the result.
+playTrace :: POSIXTime -> Contract -> [TransactionInput] -> TransactionOutput
+playTrace minTime c =
+  playTraceAux
+    TransactionOutput
+      { txOutWarnings = []
+      , txOutPayments = []
+      , txOutState = emptyState minTime
+      , txOutContract = c
+      }
 
-            checkContinuation = case txOutContract of
-              -- [Marlowe-Cardano Specification: "Constraint 4. No output to script on close".]
-              Close -> traceIfFalse "c" hasNoOutputToOwnScript
-              _ ->
-                let totalIncome = foldMap collectDeposits inputContents
-                    totalPayouts = foldMap snd payoutsByParty
-                    finalBalance = scriptInValue + totalIncome - totalPayouts
-                 in -- [Marlowe-Cardano Specification: "Constraint 3. Single Marlowe output".]
-                    -- [Marlowe-Cardano Specification: "Constraint 6. Output value to script."]
-                    -- Check that the single Marlowe output has the correct datum and value.
-                    checkOwnOutputConstraint marloweData finalBalance
-                      -- [Marlowe-Cardano Specification: "Constraint 18. Final balance."]
-                      -- [Marlowe-Cardano Specification: "Constraint 13. Positive balances".]
-                      -- [Marlowe-Cardano Specification: "Constraint 19. No duplicates".]
-                      -- Check that the final state obeys the Semantic's invariants.
-                      && checkState "o" finalBalance txOutState
-#ifdef CHECK_PRECONDITIONS
-        preconditionsOk
-          && inputsOk
-#else
-        inputsOk
-#endif
-          && payoutsOk
-          && checkContinuation
-          -- [Marlowe-Cardano Specification: "20. Single satisfaction".]
-          -- Either there must be no payouts, or there must be no other validators.
-          && traceIfFalse "z" (null payoutsByParty || noOthers)
-      Error TEAmbiguousTimeIntervalError -> traceError "i"
-      Error TEApplyNoMatchError -> traceError "n"
-      Error (TEIntervalError (InvalidInterval _)) -> traceError "j"
-      Error (TEIntervalError (IntervalInPastError _ _)) -> traceError "k"
-      Error TEUselessTransaction -> traceError "u"
-      Error TEHashMismatch -> traceError "m"
-    where
-      -- The roles currency is in the Marlowe parameters.
-      MarloweParams{rolesCurrency} = marloweParams
+-- | Calculates an upper bound for the maximum lifespan of a contract (assuming is not merkleized)
+contractLifespanUpperBound :: Contract -> POSIXTime
+contractLifespanUpperBound contract = case contract of
+  Close -> 0
+  Pay _ _ _ _ cont -> contractLifespanUpperBound cont
+  If _ contract1 contract2 ->
+    max (contractLifespanUpperBound contract1) (contractLifespanUpperBound contract2)
+  When cases timeout subContract ->
+    let contractsLifespans = [contractLifespanUpperBound c | Case _ c <- cases]
+     in Haskell.maximum (timeout : contractLifespanUpperBound subContract : contractsLifespans)
+  Let _ _ cont -> contractLifespanUpperBound cont
+  Assert _ cont -> contractLifespanUpperBound cont
 
-      -- Find the input being spent by a script.
-      findOwnInput :: ScriptContext -> Maybe TxInInfo
-      findOwnInput ScriptContext{scriptContextTxInfo = TxInfo{txInfoInputs}, scriptContextPurpose = Spending txOutRef} =
-        find (\TxInInfo{txInInfoOutRef} -> txInInfoOutRef == txOutRef) txInfoInputs
-      findOwnInput _ = Nothing
+-- | Total the balance in all accounts.
+totalBalance :: Accounts -> Money
+totalBalance accounts =
+  foldMap
+    (\((_, Token cur tok), balance) -> Val.singleton cur tok balance)
+    (Map.toList accounts)
 
-      -- [Marlowe-Cardano Specification: "2. Single Marlowe script input".]
-      -- The inputs being spent by this script, and whether other validators are present.
-      ownInput :: TxInInfo
-      noOthers :: Bool
-      (ownInput@TxInInfo{txInInfoResolved = TxOut{txOutAddress = ownAddress}}, noOthers) =
-        case findOwnInput ctx of
-          Just ownTxInInfo -> examineScripts (sameValidatorHash ownTxInInfo) Nothing True (txInfoInputs scriptContextTxInfo)
-          _ -> traceError "x" -- Input to be validated was not found.
+-- | Check that all accounts have positive balance.
+allBalancesArePositive :: State -> Bool
+allBalancesArePositive State{..} = all (\(_, balance) -> balance > 0) (Map.toList accounts)
 
-      -- Check for the presence of multiple Marlowe validators or other Plutus validators.
-      examineScripts
-        :: (ScriptHash -> Bool) -- Test for this validator.
-        -> Maybe TxInInfo -- The input for this validator, if found so far.
-        -> Bool -- Whether no other validator has been found so far.
-        -> [TxInInfo] -- The inputs remaining to be examined.
-        -> (TxInInfo, Bool) -- The input for this validator and whether no other validators are present.
-        -- This validator has not been found.
-      examineScripts _ Nothing _ [] = traceError "x"
-      -- This validator has been found, and other validators may have been found.
-      examineScripts _ (Just self) noOthers [] = (self, noOthers)
-      -- Found both this validator and another script, so we short-cut.
-      examineScripts _ (Just self) False _ = (self, False)
-      -- Found one script.
-      examineScripts f mSelf noOthers (tx@TxInInfo{txInInfoResolved = TxOut{txOutAddress = Ledger.Address (ScriptCredential vh) _}} : txs)
-        -- The script is this validator.
-        | f vh = case mSelf of
-            -- We hadn't found it before, so we save it in `mSelf`.
-            Nothing -> examineScripts f (Just tx) noOthers txs
-            -- We already had found this validator before
-            Just _ -> traceError "w"
-        -- The script is something else, so we set `noOther` to `False`.
-        | otherwise = examineScripts f mSelf False txs
-      -- An input without a validator is encountered.
-      examineScripts f self others (_ : txs) = examineScripts f self others txs
+instance Eq Payment where
+  {-# INLINEABLE (==) #-}
+  Payment a1 p1 t1 i1 == Payment a2 p2 t2 i2 = a1 == a2 && p1 == p2 && t1 == t2 && i1 == i2
 
-      -- Check if inputs are being spent from the same script.
-      sameValidatorHash :: TxInInfo -> ScriptHash -> Bool
-      sameValidatorHash TxInInfo{txInInfoResolved = TxOut{txOutAddress = Ledger.Address (ScriptCredential vh1) _}} vh2 = vh1 == vh2
-      sameValidatorHash _ _ = False
+instance Eq ReduceWarning where
+  {-# INLINEABLE (==) #-}
+  ReduceNoWarning == ReduceNoWarning = True
+  ReduceNoWarning == _ = False
+  ReduceNonPositivePay acc1 p1 tn1 a1 == ReduceNonPositivePay acc2 p2 tn2 a2 =
+    acc1 == acc2 && p1 == p2 && tn1 == tn2 && a1 == a2
+  ReduceNonPositivePay{} == _ = False
+  ReducePartialPay acc1 p1 tn1 a1 e1 == ReducePartialPay acc2 p2 tn2 a2 e2 =
+    acc1 == acc2 && p1 == p2 && tn1 == tn2 && a1 == a2 && e1 == e2
+  ReducePartialPay{} == _ = False
+  ReduceShadowing v1 old1 new1 == ReduceShadowing v2 old2 new2 =
+    v1 == v2 && old1 == old2 && new1 == new2
+  ReduceShadowing{} == _ = False
+  ReduceAssertionFailed == ReduceAssertionFailed = True
+  ReduceAssertionFailed == _ = False
 
-      -- Check a state for the correct value, positive accounts, and no duplicates.
-      checkState :: BuiltinString -> Val.Value -> State -> Bool
-      checkState tag expected State{..} =
-        let
-#ifdef CHECK_POSITIVE_BALANCES
-            positiveBalance :: (a, Integer) -> Bool
-            positiveBalance (_, balance) = balance > 0
-#endif
-#if defined(CHECK_DUPLICATE_ACCOUNTS) || defined(CHECK_DUPLICATE_CHOICES) || defined(CHECK_DUPLICATE_BINDINGS)
-            noDuplicates :: (Eq k) => AssocMap.Map k v -> Bool
-            noDuplicates am =
-              let test [] = True -- An empty list has no duplicates.
-                  test (x : xs) -- Look for a duplicate of the head in the tail.
-                    | elem x xs = False -- A duplicate is present.
-                    | otherwise = test xs -- Continue searching for a duplicate.
-               in test $ AssocMap.keys am
-#endif
-         in -- [Marlowe-Cardano Specification: "Constraint 5. Input value from script".]
-            -- and/or
-            -- [Marlowe-Cardano Specification: "Constraint 18. Final balance."]
-            traceIfFalse ("v" <> tag) (totalBalance accounts == expected)
-              -- [Marlowe-Cardano Specification: "Constraint 13. Positive balances".]
-#ifdef CHECK_POSITIVE_BALANCES
-              && traceIfFalse ("b" <> tag) (all positiveBalance $ AssocMap.toList accounts)
-#endif
-              -- [Marlowe-Cardano Specification: "Constraint 19. No duplicates".]
-#ifdef CHECK_DUPLICATE_ACCOUNTS
-              && traceIfFalse ("ea" <> tag) (noDuplicates accounts)
-#endif
-#ifdef CHECK_DUPLICATE_CHOICES
-              && traceIfFalse ("ec" <> tag) (noDuplicates choices)
-#endif
-#ifdef CHECK_DUPLICATE_BINDINGS
-              && traceIfFalse ("eb" <> tag) (noDuplicates boundValues)
-#endif
+instance Eq ReduceEffect where
+  {-# INLINEABLE (==) #-}
+  ReduceNoPayment == ReduceNoPayment = True
+  ReduceNoPayment == _ = False
+  ReduceWithPayment p1 == ReduceWithPayment p2 = p1 == p2
+  ReduceWithPayment _ == _ = False
 
-      -- Look up the Datum hash for specific data.
-      findDatumHash' :: (PlutusTx.ToData o) => o -> Maybe DatumHash
-      findDatumHash' datum = findDatumHash (Datum $ PlutusTx.toBuiltinData datum) scriptContextTxInfo
-
-      -- Check that the correct datum and value is being output to the script.
-      checkOwnOutputConstraint :: MarloweData -> Val.Value -> Bool
-      checkOwnOutputConstraint ocDatum ocValue =
-        let hsh = findDatumHash' ocDatum
-         in traceIfFalse "d"
-              $ checkScriptOutput (==) ownAddress hsh ocValue getContinuingOutput -- "Output constraint"
-      getContinuingOutput :: TxOut
-      getContinuingOutput = case filter (\TxOut{txOutAddress} -> ownAddress == txOutAddress) allOutputs of
-        [out] -> out
-        _ -> traceError "o" -- No continuation or multiple Marlowe contract outputs is forbidden.
-
-      -- Check that address, value, and datum match the specified.
-      checkScriptOutput :: (Val.Value -> Val.Value -> Bool) -> Ledger.Address -> Maybe DatumHash -> Val.Value -> TxOut -> Bool
-      checkScriptOutput comparison addr hsh value TxOut{txOutAddress, txOutValue, txOutDatum = OutputDatumHash svh} =
-        txOutValue `comparison` value && hsh == Just svh && txOutAddress == addr
-      checkScriptOutput _ _ _ _ _ = False
-
-      -- Check for any output to the script address.
-      hasNoOutputToOwnScript :: Bool
-      hasNoOutputToOwnScript = all ((/= ownAddress) . txOutAddress) allOutputs
-
-      -- All of the script outputs.
-      allOutputs :: [TxOut]
-      allOutputs = txInfoOutputs scriptContextTxInfo
-
-      -- Check merkleization and transform transaction input to semantics input.
-      marloweTxInputToInput :: MarloweTxInput -> Input
-      marloweTxInputToInput (MerkleizedTxInput input hash) =
-        case findDatum (DatumHash hash) scriptContextTxInfo of
-          Just (Datum d) ->
-            let continuation = PlutusTx.unsafeFromBuiltinData d
-             in MerkleizedInput input hash continuation
-          Nothing -> traceError "h"
-      marloweTxInputToInput (Input input) = NormalInput input
-
-      -- Check that inputs are authorized.
-      allInputsAreAuthorized :: [InputContent] -> Bool
-      allInputsAreAuthorized = all validateInputWitness
-        where
-          validateInputWitness :: InputContent -> Bool
-          validateInputWitness input =
-            case input of
-              IDeposit _ party _ _ -> validatePartyWitness party -- The party must witness a deposit.
-              IChoice (ChoiceId _ party) _ -> validatePartyWitness party -- The party must witness a choice.
-              INotify -> True -- No witness is needed for a notify.
-            where
-              validatePartyWitness :: Party -> Bool
-              validatePartyWitness (Address _ address) = traceIfFalse "s" $ txSignedByAddress address -- The key must have signed.
-              validatePartyWitness (Role role) =
-                traceIfFalse "t"
-                  $ Val.singleton rolesCurrency role 1 -- The role token must be present.
-                  `Val.leq` valueSpent scriptContextTxInfo
-
-      -- Tally the deposits in the input.
-      collectDeposits :: InputContent -> Val.Value
-      collectDeposits (IDeposit _ _ (Token cur tok) amount)
-        | amount > 0 = Val.singleton cur tok amount -- SCP-5123: Semantically negative deposits
-        | otherwise = zero -- do not remove funds from the script's UTxO.
-      collectDeposits _ = zero
-
-      -- Extract the payout to a party.
-      payoutByParty :: Payment -> AssocMap.Map Party Val.Value
-      payoutByParty (Payment _ (Party party) (Token cur tok) amount)
-        | amount > 0 = AssocMap.singleton party $ Val.singleton cur tok amount
-        | otherwise = AssocMap.empty -- NOTE: Perhaps required because semantics may make zero payments
-        -- (though this passes the test suite), but removing this function's
-        -- guard reduces the validator size by 20 bytes.
-      payoutByParty (Payment _ (Account _) _ _) = AssocMap.empty
-
-      -- Check outgoing payments.
-      payoutConstraints :: [(Party, Val.Value)] -> Bool
-      payoutConstraints = all payoutToTxOut
-        where
-          payoutToTxOut :: (Party, Val.Value) -> Bool
-          payoutToTxOut (party, value) = case party of
-            -- [Marlowe-Cardano Specification: "Constraint 15. Sufficient Payment".]
-            -- SCP-5128: Note that the payment to an address may be split into several outputs but the payment to a role must be
-            -- a single output. The flexibility of multiple outputs accommodates wallet-related practicalities such as the change and
-            -- the return of the role token being in separate UTxOs in situations where a contract is also paying to the address
-            -- where that change and that role token are sent.
-            Address _ address -> traceIfFalse "p" $ value `Val.leq` valuePaidToAddress address -- At least sufficient value paid.
-            Role role ->
-              let hsh = findDatumHash' (rolesCurrency, role)
-                  addr = Address.scriptHashAddress rolePayoutValidatorHash
-               in -- Some output must have the correct value and datum to the role-payout address.
-                  traceIfFalse "r" $ any (checkScriptOutput Val.geq addr hsh value) allOutputs
-
-      -- The key for the address must have signed.
-      txSignedByAddress :: Ledger.Address -> Bool
-      txSignedByAddress (Ledger.Address (PubKeyCredential pkh) _) = scriptContextTxInfo `txSignedBy` pkh
-      txSignedByAddress _ = False
-
-      -- Tally the value paid to an address.
-      valuePaidToAddress :: Ledger.Address -> Val.Value
-      valuePaidToAddress address = foldMap txOutValue $ filter ((== address) . txOutAddress) allOutputs
-
--- | The validator for Marlowe semantics.
-marloweValidator :: CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-marloweValidator =
-  let marloweValidator' :: ScriptHash -> BuiltinData -> BuiltinData -> BuiltinData -> ()
-      marloweValidator' rpvh d r p =
-        check
-          $ mkMarloweValidator
-            rpvh
-            (unsafeFromBuiltinData d)
-            (unsafeFromBuiltinData r)
-            (unsafeFromBuiltinData p)
-      errorOrApplied =
-        $$(PlutusTx.compile [||marloweValidator'||])
-          `PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 rolePayoutValidatorHash
-   in case errorOrApplied of
-        Haskell.Left err -> Haskell.error $ "Application of role-payout validator hash to marlowe validator failed." <> err
-        Haskell.Right applied -> applied
-
--- | The hash of the Marlowe semantics validator.
-marloweValidatorHash :: ScriptHash
-marloweValidatorHash = hashScript marloweValidator
-
--- | The serialisation of the Marlowe payout validator.
-marloweValidatorBytes :: SerialisedScript
-marloweValidatorBytes = serialiseCompiledCode marloweValidator
+-- Lifting data types to Plutus Core
+makeLift ''IntervalError
+makeLift ''IntervalResult
+makeLift ''Payment
+makeLift ''ReduceEffect
+makeLift ''ReduceWarning
+makeLift ''ReduceStepResult
+makeLift ''ReduceResult
+makeLift ''ApplyWarning
+makeLift ''ApplyResult
+makeLift ''TransactionWarning
+makeLift ''ApplyAllResult
+makeLift ''TransactionError
+makeLift ''TransactionOutput
+makeLift ''MarloweParams
+makeLift ''MarloweData
+makeIsDataIndexed ''MarloweParams [('MarloweParams, 0)]
+makeIsDataIndexed ''MarloweData [('MarloweData, 0)]

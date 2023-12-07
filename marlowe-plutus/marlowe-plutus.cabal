@@ -74,18 +74,6 @@ flag check-duplicate-bindings
   default:     True
   manual:      False
 
-flag plutus-asdata
-  description:
-    DANGER: Use alternative implementation relying on `PlutusTx.asData`.
-
-  default:     False
-  manual:      True
-
-flag validator-experiment
-  description: DANGER: Use the experimental, unaudited validator.
-  default:     False
-  manual:      True
-
 common lang
   default-language:   Haskell2010
   default-extensions:
@@ -103,7 +91,7 @@ common lang
     -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wredundant-constraints -Widentities -Werror
 
-  if (flag(profile-plutus) || flag(profile-plutus))
+  if (flag(profile-plutus) || flag(trace-plutus))
     ghc-options: -fplugin-opt PlutusTx.Plugin:conservative-optimisation
 
   if flag(profile-plutus)
@@ -136,7 +124,6 @@ library
     , cardano-crypto-class
     , flat
     , lens
-    , marlowe-cardano ==0.2.1.0
     , newtype-generics
     , plutus-core ==1.15.0.0
     , plutus-ledger-api ==1.15.0.0
@@ -146,23 +133,15 @@ library
 
   exposed-modules:
     Language.Marlowe.Plutus
-    Language.Marlowe.Plutus.AsData.ScriptTypes
-    Language.Marlowe.Plutus.AsData.Semantics
-    Language.Marlowe.Plutus.AsData.Semantics.Types
-    Language.Marlowe.Plutus.AsData.Semantics.Types.Address
-    Language.Marlowe.Plutus.Experiment.Script
-    Language.Marlowe.Plutus.Experiment.ScriptTypes
-    Language.Marlowe.Plutus.Experiment.Semantics
-    Language.Marlowe.Plutus.Experiment.Semantics.Types
-    Language.Marlowe.Plutus.Experiment.Semantics.Types.Address
     Language.Marlowe.Plutus.OpenRoles
     Language.Marlowe.Plutus.RolePayout
     Language.Marlowe.Plutus.RoleTokens
     Language.Marlowe.Plutus.RoleTokens.Types
+    Language.Marlowe.Plutus.Script
+    Language.Marlowe.Plutus.ScriptTypes
     Language.Marlowe.Plutus.Semantics
-
-  if flag(plutus-asdata)
-    cpp-options: -DPLUTUS_ASDATA
+    Language.Marlowe.Plutus.Semantics.Types
+    Language.Marlowe.Plutus.Semantics.Types.Address
 
 executable marlowe-validators
   import:         lang
@@ -197,9 +176,6 @@ executable marlowe-validators
     , yaml
 
   ghc-options:    -threaded
-
-  if flag(validator-experiment)
-    cpp-options: -DVALIDATOR_EXPERIMENT
 
 executable marlowe-minting-validator
   import:         lang
@@ -295,7 +271,6 @@ executable marlowe-charli3
     , base16-bytestring
     , bytestring
     , cardano-binary
-    , marlowe-cardano ==0.2.1.0
     , marlowe-plutus
     , optparse-applicative
     , oracle-feed

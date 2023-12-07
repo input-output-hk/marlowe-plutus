@@ -25,19 +25,11 @@ import Benchmark.Marlowe.Util (
   updateScriptHash,
  )
 import Data.Bifunctor (second)
-#ifdef VALIDATOR_EXPERIMENT
-import Language.Marlowe.Plutus.Experiment.Script (
+import Language.Marlowe.Plutus.Script (
   marloweValidator,
   marloweValidatorBytes,
   marloweValidatorHash,
  )
-#else
-import Language.Marlowe.Plutus.Semantics (
-  marloweValidator,
-  marloweValidatorBytes,
-  marloweValidatorHash,
- )
-#endif
 import PlutusLedgerApi.V2 (
   Credential (PubKeyCredential, ScriptCredential),
   ExBudget (ExBudget),

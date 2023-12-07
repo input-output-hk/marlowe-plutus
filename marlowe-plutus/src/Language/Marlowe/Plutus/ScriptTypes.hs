@@ -13,7 +13,7 @@
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
-module Language.Marlowe.Plutus.AsData.ScriptTypes (
+module Language.Marlowe.Plutus.ScriptTypes (
   -- * Types
   MarloweInput,
   MarloweTxInput (..),
@@ -23,7 +23,7 @@ module Language.Marlowe.Plutus.AsData.ScriptTypes (
 ) where
 
 import GHC.Generics (Generic)
-import Language.Marlowe.Plutus.AsData.Semantics.Types as Semantics
+import Language.Marlowe.Plutus.Semantics.Types as Semantics
 import PlutusTx (makeIsDataIndexed, makeLift)
 import PlutusTx.Prelude as PlutusTxPrelude hiding (traceError, traceIfFalse)
 import Prelude qualified as Haskell

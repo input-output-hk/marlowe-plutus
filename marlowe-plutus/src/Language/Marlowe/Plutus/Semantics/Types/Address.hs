@@ -1,4 +1,4 @@
-module Language.Marlowe.Plutus.Experiment.Semantics.Types.Address (
+module Language.Marlowe.Plutus.Semantics.Types.Address (
   -- * Types
   Network,
   mainnet,

@@ -33,7 +33,7 @@ import PlutusLedgerApi.V2.Contexts (valueSpent)
 import PlutusTx (CompiledCode)
 import PlutusTx.Plugin ()
 
-import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
+import Language.Marlowe.Plutus.Semantics.Types as Semantics (
   CurrencySymbol,
   TokenName,
  )

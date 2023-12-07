@@ -34,7 +34,7 @@
 {-# OPTIONS_GHC -fno-strictness #-}
 
 -- | Types for Marlowe semantics
-module Language.Marlowe.Plutus.Experiment.Semantics.Types (
+module Language.Marlowe.Plutus.Semantics.Types (
   -- * Type Aliases
   AccountId,
   Accounts,
@@ -78,8 +78,7 @@ import Control.Newtype.Generics (Newtype)
 import Data.Data (Data)
 import Data.String (IsString (..))
 import GHC.Generics
-import Language.Marlowe.Plutus.Experiment.Semantics.Types.Address
-import Language.Marlowe.Pretty (Pretty (..))
+import Language.Marlowe.Plutus.Semantics.Types.Address
 import qualified PlutusLedgerApi.V1.Value as Val
 import PlutusLedgerApi.V2 (CurrencySymbol (unCurrencySymbol), POSIXTime (..), TokenName (unTokenName))
 import qualified PlutusLedgerApi.V2 as Ledger (Address (..))
@@ -123,7 +122,6 @@ type TimeInterval = (POSIXTime, POSIXTime)
 --   a pair of a currency symbol and token name.
 data Token = Token CurrencySymbol TokenName
   deriving stock (Generic, Haskell.Eq, Haskell.Ord)
-  deriving anyclass (Pretty)
 
 makeIsDataIndexed ''Token [('Token, 0)]
 
@@ -225,7 +223,6 @@ makeIsDataIndexed
 -- | The (inclusive) bound on a choice number.
 data Bound = Bound Integer Integer
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
-  deriving anyclass (Pretty)
 
 makeIsDataIndexed ''Bound [('Bound, 0)]
 
@@ -386,9 +383,6 @@ instance Eq Token where
 instance Eq ValueId where
   {-# INLINEABLE (==) #-}
   ValueId n1 == ValueId n2 = n1 == n2
-
-instance Pretty ValueId where
-  prettyFragment (ValueId n) = prettyFragment n
 
 instance Eq Payee where
   {-# INLINEABLE (==) #-}

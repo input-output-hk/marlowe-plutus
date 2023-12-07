@@ -17,7 +17,7 @@
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
 
 -- | Marlowe semantics validator.
-module Language.Marlowe.Plutus.Experiment.Script (
+module Language.Marlowe.Plutus.Script (
   -- * Validation
   marloweValidator,
   marloweValidatorBytes,
@@ -25,8 +25,8 @@ module Language.Marlowe.Plutus.Experiment.Script (
   mkMarloweValidator,
 ) where
 
-import Language.Marlowe.Plutus.Experiment.ScriptTypes (MarloweInput, MarloweTxInput (..))
-import Language.Marlowe.Plutus.Experiment.Semantics as Semantics (
+import Language.Marlowe.Plutus.ScriptTypes (MarloweInput, MarloweTxInput (..))
+import Language.Marlowe.Plutus.Semantics as Semantics (
   MarloweData (..),
   MarloweParams (MarloweParams, rolesCurrency),
   Payment (..),
@@ -48,7 +48,7 @@ import Language.Marlowe.Plutus.Experiment.Semantics as Semantics (
   computeTransaction,
   totalBalance,
  )
-import Language.Marlowe.Plutus.Experiment.Semantics.Types as Semantics (
+import Language.Marlowe.Plutus.Semantics.Types as Semantics (
   ChoiceId (ChoiceId),
   Contract (Close),
   CurrencySymbol,
