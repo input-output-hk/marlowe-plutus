@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  $Headers
@@ -7,7 +8,7 @@
 -- Portability :  Portable
 --
 -----------------------------------------------------------------------------
-{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -84,12 +85,18 @@ import qualified PlutusLedgerApi.V1.Value as Val
 import PlutusLedgerApi.V2 (CurrencySymbol (unCurrencySymbol), POSIXTime (..), TokenName (unTokenName))
 import qualified PlutusLedgerApi.V2 as Ledger (Address (..))
 import PlutusTx (FromData, ToData, UnsafeFromData, makeIsDataIndexed)
-import PlutusTx.AsData (asData)
 import PlutusTx.AssocMap (Map)
 import qualified PlutusTx.AssocMap as Map
 import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude hiding (encodeUtf8, mapM, (<$>), (<*>), (<>))
 import qualified Prelude as Haskell
+#ifdef ASDATA_ASDATA
+import PlutusTx.AsData (asData)
+#else
+import qualified PlutusTx.Builtins.Internal as PTxI (unsafeDataAsConstr, head, unitval, mkNilData, mkCons, mkConstr)
+import qualified PlutusTx.Builtins as PTxI (pairToPair, unsafeUncons)
+import qualified PlutusTx.IsData.Class as PTxI (unsafeFromBuiltinData, toBuiltinData)
+#endif
 
 -- | A Party to a contractt.
 data Party
@@ -229,6 +236,8 @@ data Bound = Bound Integer Integer
 
 makeIsDataIndexed ''Bound [('Bound, 0)]
 
+#ifdef ASDATA_ASDATA
+
 asData
   [d|
     -- \| Actions happen at particular points during execution.
@@ -249,6 +258,74 @@ asData
       deriving stock (Generic, Data)
       deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
     |]
+
+#else
+
+newtype Action = ActionImpl BuiltinData
+  deriving stock (Generic, Data)
+  deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
+
+{-# COMPLETE Deposit, Choice, Notify #-}
+
+pattern Deposit :: AccountId -> Party -> Token -> Value Observation -> Action
+pattern Deposit accountId party token value <-
+  ActionImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 0 -> True
+    , PTxI.unsafeUncons -> (
+        PTxI.unsafeFromBuiltinData -> accountId
+      , PTxI.unsafeUncons -> (
+          PTxI.unsafeFromBuiltinData -> party
+        , PTxI.unsafeUncons -> (
+            PTxI.unsafeFromBuiltinData -> token
+          , PTxI.head -> PTxI.unsafeFromBuiltinData -> value
+          )
+        )
+      )
+    )
+  ) where
+    Deposit accountId party token value =
+      ActionImpl
+        $ PTxI.mkConstr 0
+        $ PTxI.mkCons (PTxI.toBuiltinData accountId)
+        $ PTxI.mkCons (PTxI.toBuiltinData party)
+        $ PTxI.mkCons (PTxI.toBuiltinData token)
+        $ PTxI.mkCons (PTxI.toBuiltinData value)
+        $ PTxI.mkNilData PTxI.unitval
+
+pattern Choice :: ChoiceId -> [Bound] -> Action
+pattern Choice choiceId bounds <-
+  ActionImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 1 -> True
+    , PTxI.unsafeUncons -> (
+        PTxI.unsafeFromBuiltinData -> choiceId
+      , PTxI.head -> PTxI.unsafeFromBuiltinData -> bounds
+      )
+    )
+  ) where
+    Choice choiceId bounds =
+      ActionImpl
+        $ PTxI.mkConstr 1
+        $ PTxI.mkCons (PTxI.toBuiltinData choiceId)
+        $ PTxI.mkCons (PTxI.toBuiltinData bounds)
+        $ PTxI.mkNilData PTxI.unitval
+
+pattern Notify :: Observation -> Action
+pattern Notify observation <-
+  ActionImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 2 -> True
+    , PTxI.head -> PTxI.unsafeFromBuiltinData -> observation
+    )
+  ) where
+    Notify observation =
+      ActionImpl
+        $ PTxI.mkConstr 2
+        $ PTxI.mkCons (PTxI.toBuiltinData observation)
+        $ PTxI.mkNilData PTxI.unitval
+
+#endif
 
 -- | A payment can be made to one of the parties to the contract,
 --   or to one of the accounts of the contract,
@@ -278,6 +355,8 @@ getAction (Case action _) = action
 getAction (MerkleizedCase action _) = action
 {-# INLINEABLE getAction #-}
 
+#ifdef ASDATA_ASDATA
+
 asData
   [d|
     -- \| Marlowe has six ways of building contracts.
@@ -296,6 +375,143 @@ asData
       deriving stock (Generic, Data)
       deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
     |]
+
+#else
+
+newtype Contract = ContractImpl BuiltinData
+  deriving stock (Generic, Data)
+  deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
+
+{-# COMPLETE Close, Pay, If, When, Let, Assert #-}
+
+pattern Close :: Contract
+pattern Close <-
+  ContractImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 0 -> True
+    , _
+    )
+  ) where
+    Close =
+      ContractImpl
+        $ PTxI.mkConstr 0
+        $ PTxI.mkNilData PTxI.unitval
+
+pattern Pay :: AccountId -> Payee -> Token -> Value Observation -> Contract -> Contract
+pattern Pay accountId payee token value contract <-
+  ContractImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 1 -> True
+    , PTxI.unsafeUncons -> (
+        PTxI.unsafeFromBuiltinData -> accountId
+      , PTxI.unsafeUncons -> (
+          PTxI.unsafeFromBuiltinData -> payee
+        , PTxI.unsafeUncons -> (
+            PTxI.unsafeFromBuiltinData -> token
+          , PTxI.unsafeUncons -> (
+              PTxI.unsafeFromBuiltinData -> value
+            , PTxI.head -> PTxI.unsafeFromBuiltinData -> contract
+            )
+          )
+        )
+      )
+    )
+  ) where
+    Pay accountId payee token value contract =
+      ContractImpl
+        $ PTxI.mkConstr 1
+        $ PTxI.mkCons (PTxI.toBuiltinData accountId)
+        $ PTxI.mkCons (PTxI.toBuiltinData payee)
+        $ PTxI.mkCons (PTxI.toBuiltinData token)
+        $ PTxI.mkCons (PTxI.toBuiltinData value)
+        $ PTxI.mkCons (PTxI.toBuiltinData contract)
+        $ PTxI.mkNilData PTxI.unitval
+
+pattern If :: Observation -> Contract -> Contract -> Contract
+pattern If observation thenContract elseContract <-
+  ContractImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 2 -> True
+    , PTxI.unsafeUncons -> (
+        PTxI.unsafeFromBuiltinData -> observation
+      , PTxI.unsafeUncons -> (
+          PTxI.unsafeFromBuiltinData -> thenContract
+        , PTxI.head -> PTxI.unsafeFromBuiltinData -> elseContract
+        )
+      )
+    )
+  ) where
+    If observation thenContract elseContract =
+      ContractImpl
+        $ PTxI.mkConstr 2
+        $ PTxI.mkCons (PTxI.toBuiltinData observation)
+        $ PTxI.mkCons (PTxI.toBuiltinData thenContract)
+        $ PTxI.mkCons (PTxI.toBuiltinData elseContract)
+        $ PTxI.mkNilData PTxI.unitval
+
+pattern When :: [Case Contract] -> Timeout -> Contract -> Contract
+pattern When cases timeout contract <-
+  ContractImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 3 -> True
+    , PTxI.unsafeUncons -> (
+        PTxI.unsafeFromBuiltinData -> cases
+      , PTxI.unsafeUncons -> (
+          PTxI.unsafeFromBuiltinData -> timeout
+        , PTxI.head -> PTxI.unsafeFromBuiltinData -> contract
+        )
+      )
+    )
+  ) where
+    When cases timeout contract =
+      ContractImpl
+        $ PTxI.mkConstr 3
+        $ PTxI.mkCons (PTxI.toBuiltinData cases)
+        $ PTxI.mkCons (PTxI.toBuiltinData timeout)
+        $ PTxI.mkCons (PTxI.toBuiltinData contract)
+        $ PTxI.mkNilData PTxI.unitval
+
+pattern Let :: ValueId -> Value Observation -> Contract -> Contract
+pattern Let valueId value contract <-
+  ContractImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 4 -> True
+    , PTxI.unsafeUncons -> (
+        PTxI.unsafeFromBuiltinData -> valueId
+      , PTxI.unsafeUncons -> (
+          PTxI.unsafeFromBuiltinData -> value
+        , PTxI.head -> PTxI.unsafeFromBuiltinData -> contract
+        )
+      )
+    )
+  ) where
+    Let valueId value contract =
+      ContractImpl
+        $ PTxI.mkConstr 4
+        $ PTxI.mkCons (PTxI.toBuiltinData valueId)
+        $ PTxI.mkCons (PTxI.toBuiltinData value)
+        $ PTxI.mkCons (PTxI.toBuiltinData contract)
+        $ PTxI.mkNilData PTxI.unitval
+
+pattern Assert :: Observation -> Contract -> Contract
+pattern Assert observation contract <-
+  ContractImpl (
+    PTxI.unsafeDataAsConstr -> PTxI.pairToPair -> (
+      (==) 5 -> True
+    , PTxI.unsafeUncons -> (
+        PTxI.unsafeFromBuiltinData -> observation
+      , PTxI.head -> PTxI.unsafeFromBuiltinData -> contract
+      )
+    )
+  ) where
+    Assert observation contract =
+      ContractImpl
+        $ PTxI.mkConstr 5
+        $ PTxI.mkCons (PTxI.toBuiltinData observation)
+        $ PTxI.mkCons (PTxI.toBuiltinData contract)
+        $ PTxI.mkNilData PTxI.unitval
+
+#endif
 
 -- | Marlowe contract internal state. Stored in a /Datum/ of a transaction output.
 data State = State
