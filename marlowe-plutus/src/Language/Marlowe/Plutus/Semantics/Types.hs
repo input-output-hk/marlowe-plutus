@@ -239,6 +239,8 @@ asData
     --   * The contract is notified that a particular observation be made.
     --     Typically this would be done by one of the parties,
     --     or one of their wallets acting automatically.
+    --
+    --   Note that the @asData@ encompases an equivalent @makeIsDataIndexed ''Action [('Deposit, 0), ('Choice, 1), ('Notify, 2)]@.
     data Action
       = Deposit AccountId Party Token (Value Observation)
       | Choice ChoiceId [Bound]
@@ -283,6 +285,8 @@ asData
     --   is a simple contract.
     --   At each step of execution, as well as returning a new state and continuation contract,
     --   it is possible that effects – payments – and warnings can be generated too.
+    --
+    --   Note that the @asData@ encompases an equivalent @makeIsDataIndexed ''Action [('Close, 0), ('Pay, 1), ('If, 2), ('When, 3), ('Let, 4), ('Assert, 5)]@.
     data Contract
       = Close
       | Pay AccountId Payee Token (Value Observation) Contract
