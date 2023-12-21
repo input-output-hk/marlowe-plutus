@@ -25,7 +25,7 @@ module Language.Marlowe.Plutus.Script (
   mkMarloweValidator,
 ) where
 
-import Language.Marlowe.Plutus.ScriptTypes (MarloweInput, MarloweTxInput (..))
+import Language.Marlowe.Plutus.Script.Types (MarloweInput, MarloweTxInput (..))
 import Language.Marlowe.Plutus.Semantics as Semantics (
   MarloweData (..),
   MarloweParams (MarloweParams, rolesCurrency),

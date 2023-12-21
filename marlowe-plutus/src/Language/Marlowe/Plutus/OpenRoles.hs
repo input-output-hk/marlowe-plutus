@@ -24,7 +24,7 @@ module Language.Marlowe.Plutus.OpenRoles (
 import GHC.Generics (Generic)
 import Language.Marlowe.Plutus (hashScript)
 import Language.Marlowe.Plutus.Script (marloweValidatorHash)
-import Language.Marlowe.Plutus.ScriptTypes (MarloweInput, MarloweTxInput (..))
+import Language.Marlowe.Plutus.Script.Types (MarloweInput, MarloweTxInput (..))
 import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V1.Value (valueOf)
 import PlutusLedgerApi.V2 (

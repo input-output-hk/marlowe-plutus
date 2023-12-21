@@ -13,7 +13,7 @@
 --
 -- Stability   :  Experimental
 -- Portability :  Portable
-module Language.Marlowe.Plutus.ScriptTypes (
+module Language.Marlowe.Plutus.Script.Types (
   -- * Types
   MarloweInput,
   MarloweTxInput (..),

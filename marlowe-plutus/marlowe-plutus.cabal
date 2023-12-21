@@ -1,6 +1,6 @@
 cabal-version: 3.4
 name:          marlowe-plutus
-version:       0.1.1.0
+version:       0.1.2.0
 license:       Apache-2.0
 build-type:    Simple
 maintainer:    brian.bush@iohk.io
@@ -148,7 +148,7 @@ library
     Language.Marlowe.Plutus.RoleTokens
     Language.Marlowe.Plutus.RoleTokens.Types
     Language.Marlowe.Plutus.Script
-    Language.Marlowe.Plutus.ScriptTypes
+    Language.Marlowe.Plutus.Script.Types
     Language.Marlowe.Plutus.Semantics
     Language.Marlowe.Plutus.Semantics.Types
     Language.Marlowe.Plutus.Semantics.Types.Address

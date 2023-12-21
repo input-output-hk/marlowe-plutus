@@ -58,7 +58,7 @@ import PlutusTx (CompiledCode)
 
 import PlutusTx.Prelude as PlutusTxPrelude
 
-import qualified Language.Marlowe.Plutus.ScriptTypes as V1.Scripts
+import qualified Language.Marlowe.Plutus.Script.Types as V1.Scripts
 import qualified Language.Marlowe.Plutus.Semantics.Types as V1
 import qualified OracleFeed as C3
 import qualified PlutusLedgerApi.V2 as PV2
