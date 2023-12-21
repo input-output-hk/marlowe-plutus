@@ -44,35 +44,45 @@ flag check-preconditions
     Validator checks whether preconditions are satisfied for the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
 flag check-positive-balances
   description:
     Validator checks whether any account balances are non-positive in the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
 flag check-duplicate-accounts
   description:
     Validator checks whether any accounts are duplicated in the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
 flag check-duplicate-choices
   description:
     Validator checks whether any choices are duplicated in the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
 flag check-duplicate-bindings
   description:
     Validator checks whether any bound values are duplicated in the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
+
+flag asdata-case
+  description: Use `PlutusTx.asData` for `Case`.
+  default:     False
+  manual:      True
+
+flag asdata-action
+  description: Use `PlutusTx.asData` for `Action`.
+  default:     True
+  manual:      True
 
 common lang
   default-language:   Haskell2010
@@ -142,6 +152,12 @@ library
     Language.Marlowe.Plutus.Semantics
     Language.Marlowe.Plutus.Semantics.Types
     Language.Marlowe.Plutus.Semantics.Types.Address
+
+  if flag(asdata-case)
+    cpp-options: -DASDATA_CASE
+
+  if flag(asdata-action)
+    cpp-options: -DASDATA_ACTION
 
 executable marlowe-validators
   import:         lang

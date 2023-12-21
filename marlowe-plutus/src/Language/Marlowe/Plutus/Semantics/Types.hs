@@ -1,3 +1,4 @@
+{- FOURMOLU_DISABLE -}
 -----------------------------------------------------------------------------
 --
 -- Module      :  $Headers
@@ -8,6 +9,7 @@
 --
 -----------------------------------------------------------------------------
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -47,9 +49,9 @@ module Language.Marlowe.Plutus.Semantics.Types (
   -- * Contract Types
   Action (Deposit, Choice, Notify),
   Bound (..),
-  Case (..),
+  Case (Case, MerkleizedCase),
   ChoiceId (..),
-  Contract (Close, Pay, When, If, Assert, Let),
+  Contract (..),
   CurrencySymbol (..),
   Environment (..),
   Input (..),
@@ -75,20 +77,25 @@ module Language.Marlowe.Plutus.Semantics.Types (
 ) where
 
 import Control.Newtype.Generics (Newtype)
-import Data.Data (Data)
 import Data.String (IsString (..))
 import GHC.Generics
 import Language.Marlowe.Plutus.Semantics.Types.Address
 import qualified PlutusLedgerApi.V1.Value as Val
 import PlutusLedgerApi.V2 (CurrencySymbol (unCurrencySymbol), POSIXTime (..), TokenName (unTokenName))
 import qualified PlutusLedgerApi.V2 as Ledger (Address (..))
-import PlutusTx (FromData, ToData, UnsafeFromData, makeIsDataIndexed)
-import PlutusTx.AsData (asData)
 import PlutusTx.AssocMap (Map)
 import qualified PlutusTx.AssocMap as Map
 import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude hiding (encodeUtf8, mapM, (<$>), (<*>), (<>))
 import qualified Prelude as Haskell
+
+#if defined(ASDATA_CASE) || defined(ASDATA_ACTION)
+import Data.Data (Data)
+import PlutusTx (FromData, ToData, UnsafeFromData, makeIsDataIndexed)
+import PlutusTx.AsData (asData)
+#else
+import PlutusTx (makeIsDataIndexed)
+#endif
 
 -- | A Party to a contractt.
 data Party
@@ -226,9 +233,11 @@ data Bound = Bound Integer Integer
 
 makeIsDataIndexed ''Bound [('Bound, 0)]
 
+#ifdef ASDATA_ACTION
+
 asData
   [d|
-    -- \| Actions happen at particular points during execution.
+    -- | Actions happen at particular points during execution.
     --   Three kinds of action are possible:
     --
     --   * A @Deposit n p v@ makes a deposit of value @v@ into account @n@ belonging to party @p@.
@@ -249,6 +258,29 @@ asData
       deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
     |]
 
+#else
+
+-- | Actions happen at particular points during execution.
+--   Three kinds of action are possible:
+--
+--   * A @Deposit n p v@ makes a deposit of value @v@ into account @n@ belonging to party @p@.
+--
+--   * A choice is made for a particular id with a list of bounds on the values that are acceptable.
+--     For example, @[(0, 0), (3, 5]@ offers the choice of one of 0, 3, 4 and 5.
+--
+--   * The contract is notified that a particular observation be made.
+--     Typically this would be done by one of the parties,
+--     or one of their wallets acting automatically.
+data Action
+  = Deposit AccountId Party Token (Value Observation)
+  | Choice ChoiceId [Bound]
+  | Notify Observation
+  deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
+
+makeIsDataIndexed ''Action [('Deposit, 0), ('Choice, 1), ('Notify, 2)]
+
+#endif
+
 -- | A payment can be made to one of the parties to the contract,
 --   or to one of the accounts of the contract,
 --   and this is reflected in the definition.
@@ -258,6 +290,19 @@ data Payee
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
 
 makeIsDataIndexed ''Payee [('Account, 0), ('Party, 1)]
+
+#ifdef ASDATA_CASE
+
+asData
+  [d|
+    data Case a
+      = Case Action a
+      | MerkleizedCase Action BuiltinByteString
+      deriving stock (Generic, Data)
+      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
+    |]
+
+#else
 
 -- | A case is a branch of a when clause, guarded by an action.
 --   The continuation of the contract may be merkleized or not.
@@ -271,32 +316,42 @@ data Case a
 
 makeIsDataIndexed ''Case [('Case, 0), ('MerkleizedCase, 1)]
 
+#endif
+
 -- | Extract the @Action@ from a @Case@.
+#ifdef ASDATA_CASE
+getAction :: (ToData a, UnsafeFromData a) => Case a -> Action
+#else
 getAction :: Case a -> Action
+#endif
 getAction (Case action _) = action
 getAction (MerkleizedCase action _) = action
 {-# INLINEABLE getAction #-}
 
-asData
-  [d|
-    -- \| Marlowe has six ways of building contracts.
-    --   Five of these – 'Pay', 'Let', 'If', 'When' and 'Assert' –
-    --   build a complex contract from simpler contracts, and the sixth, 'Close',
-    --   is a simple contract.
-    --   At each step of execution, as well as returning a new state and continuation contract,
-    --   it is possible that effects – payments – and warnings can be generated too.
-    --
-    --   Note that the @asData@ encompases an equivalent @makeIsDataIndexed ''Action [('Close, 0), ('Pay, 1), ('If, 2), ('When, 3), ('Let, 4), ('Assert, 5)]@.
-    data Contract
-      = Close
-      | Pay AccountId Payee Token (Value Observation) Contract
-      | If Observation Contract Contract
-      | When [Case Contract] Timeout Contract
-      | Let ValueId (Value Observation) Contract
-      | Assert Observation Contract
-      deriving stock (Generic, Data)
-      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
-    |]
+-- | Marlowe has six ways of building contracts.
+--   Five of these – 'Pay', 'Let', 'If', 'When' and 'Assert' –
+--   build a complex contract from simpler contracts, and the sixth, 'Close',
+--   is a simple contract.
+--   At each step of execution, as well as returning a new state and continuation contract,
+--   it is possible that effects – payments – and warnings can be generated too.
+data Contract
+  = Close
+  | Pay AccountId Payee Token (Value Observation) Contract
+  | If Observation Contract Contract
+  | When [Case Contract] Timeout Contract
+  | Let ValueId (Value Observation) Contract
+  | Assert Observation Contract
+  deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
+
+makeIsDataIndexed
+  ''Contract
+  [ ('Close, 0)
+  , ('Pay, 1)
+  , ('If, 2)
+  , ('When, 3)
+  , ('Let, 4)
+  , ('Assert, 5)
+  ]
 
 -- | Marlowe contract internal state. Stored in a /Datum/ of a transaction output.
 data State = State
@@ -464,7 +519,11 @@ instance Eq Action where
   Notify obs1 == Notify obs2 = obs1 == obs2
   Notify{} == _ = False
 
+#ifdef ASDATA_CASE
+instance (Eq a, ToData a, UnsafeFromData a) => Eq (Case a) where
+#else
 instance (Eq a) => Eq (Case a) where
+#endif
   {-# INLINEABLE (==) #-}
   Case acl cl == Case acr cr = acl == acr && cl == cr
   Case{} == _ = False
