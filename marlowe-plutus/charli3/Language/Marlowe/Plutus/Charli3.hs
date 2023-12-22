@@ -36,7 +36,7 @@ module Language.Marlowe.Plutus.Charli3 (
 ) where
 
 import Language.Marlowe.Plutus (hashScript)
-import Language.Marlowe.Plutus.Semantics (marloweValidatorHash)
+import Language.Marlowe.Plutus.Script (marloweValidatorHash)
 import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V1.Address (scriptHashAddress)
 import PlutusLedgerApi.V1.Value (adaSymbol, getValue, valueOf)
@@ -58,8 +58,8 @@ import PlutusTx (CompiledCode)
 
 import PlutusTx.Prelude as PlutusTxPrelude
 
-import qualified Language.Marlowe.Core.V1.Semantics.Types as V1
-import qualified Language.Marlowe.Scripts.Types as V1.Scripts
+import qualified Language.Marlowe.Plutus.Script.Types as V1.Scripts
+import qualified Language.Marlowe.Plutus.Semantics.Types as V1
 import qualified OracleFeed as C3
 import qualified PlutusLedgerApi.V2 as PV2
 import qualified PlutusTx

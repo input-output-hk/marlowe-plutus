@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -24,7 +25,7 @@ import Benchmark.Marlowe.Util (
   updateScriptHash,
  )
 import Data.Bifunctor (second)
-import Language.Marlowe.Plutus.Semantics (
+import Language.Marlowe.Plutus.Script (
   marloweValidator,
   marloweValidatorBytes,
   marloweValidatorHash,

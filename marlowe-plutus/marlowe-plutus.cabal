@@ -1,6 +1,6 @@
 cabal-version: 3.4
 name:          marlowe-plutus
-version:       0.1.1.0
+version:       0.1.2.0
 license:       Apache-2.0
 build-type:    Simple
 maintainer:    brian.bush@iohk.io
@@ -34,46 +34,54 @@ flag trace-plutus
   default:     False
   manual:      True
 
+flag profile-plutus
+  description: Enable Plutus profiling for Marlowe validators.
+  default:     False
+  manual:      True
+
 flag check-preconditions
   description:
     Validator checks whether preconditions are satisfied for the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
 flag check-positive-balances
   description:
     Validator checks whether any account balances are non-positive in the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
 flag check-duplicate-accounts
   description:
     Validator checks whether any accounts are duplicated in the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
 flag check-duplicate-choices
   description:
     Validator checks whether any choices are duplicated in the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
 flag check-duplicate-bindings
   description:
     Validator checks whether any bound values are duplicated in the Marlowe state.
 
   default:     True
-  manual:      False
+  manual:      True
 
-flag plutus-asdata
-  description:
-    Experimental! Use alternative implementation relying on `PlutusTx.asData`.
+flag asdata-case
+  description: Use `PlutusTx.asData` for `Case`.
+  default:     True
+  manual:      True
 
-  default:     False
+flag asdata-action
+  description: Use `PlutusTx.asData` for `Action`.
+  default:     True
   manual:      True
 
 common lang
@@ -89,18 +97,18 @@ common lang
     StandaloneDeriving
 
   ghc-options:
-    -Wall -Wnoncanonical-monad-instances -Wincomplete-uni-patterns
-    -Wincomplete-record-updates -Wredundant-constraints -Widentities
-    -Werror
+    -fforce-recomp -Wall -Wnoncanonical-monad-instances
+    -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wredundant-constraints -Widentities -Werror
+
+  if (flag(profile-plutus) || flag(trace-plutus))
+    ghc-options: -fplugin-opt PlutusTx.Plugin:conservative-optimisation
+
+  if flag(profile-plutus)
+    ghc-options: -fplugin-opt PlutusTx.Plugin:profile-all
 
   if flag(trace-plutus)
     cpp-options: -DTRACE_PLUTUS
-    ghc-options:
-      -fforce-recomp -fplugin-opt
-      PlutusTx.Plugin:conservative-optimisation
-
-  else
-    ghc-options: -fforce-recomp -fplugin-opt PlutusTx.Plugin:remove-trace
 
   if flag(check-preconditions)
     cpp-options: -DCHECK_PRECONDITIONS
@@ -126,7 +134,6 @@ library
     , cardano-crypto-class
     , flat
     , lens
-    , marlowe-cardano ==0.2.1.0
     , newtype-generics
     , plutus-core ==1.15.0.0
     , plutus-ledger-api ==1.15.0.0
@@ -136,18 +143,21 @@ library
 
   exposed-modules:
     Language.Marlowe.Plutus
-    Language.Marlowe.Plutus.Alt.ScriptTypes
-    Language.Marlowe.Plutus.Alt.Semantics
-    Language.Marlowe.Plutus.Alt.Semantics.Types
-    Language.Marlowe.Plutus.Alt.Semantics.Types.Address
     Language.Marlowe.Plutus.OpenRoles
     Language.Marlowe.Plutus.RolePayout
     Language.Marlowe.Plutus.RoleTokens
     Language.Marlowe.Plutus.RoleTokens.Types
+    Language.Marlowe.Plutus.Script
+    Language.Marlowe.Plutus.Script.Types
     Language.Marlowe.Plutus.Semantics
+    Language.Marlowe.Plutus.Semantics.Types
+    Language.Marlowe.Plutus.Semantics.Types.Address
 
-  if flag(plutus-asdata)
-    cpp-options: -DPLUTUS_ASDATA
+  if flag(asdata-case)
+    cpp-options: -DASDATA_CASE
+
+  if flag(asdata-action)
+    cpp-options: -DASDATA_ACTION
 
 executable marlowe-validators
   import:         lang
@@ -157,11 +167,13 @@ executable marlowe-validators
     Benchmark.Marlowe
     Benchmark.Marlowe.RolePayout
     Benchmark.Marlowe.Semantics
+    Benchmark.Marlowe.Semantics.Pretty
     Benchmark.Marlowe.Types
     Benchmark.Marlowe.Util
     Paths_marlowe_plutus
 
   build-depends:
+    , aeson
     , base
     , base16-bytestring
     , bytestring
@@ -177,6 +189,7 @@ executable marlowe-validators
     , plutus-tx
     , serialise
     , text
+    , yaml
 
   ghc-options:    -threaded
 
@@ -274,7 +287,6 @@ executable marlowe-charli3
     , base16-bytestring
     , bytestring
     , cardano-binary
-    , marlowe-cardano ==0.2.1.0
     , marlowe-plutus
     , optparse-applicative
     , oracle-feed

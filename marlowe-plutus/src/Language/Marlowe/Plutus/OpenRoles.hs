@@ -23,8 +23,8 @@ module Language.Marlowe.Plutus.OpenRoles (
 
 import GHC.Generics (Generic)
 import Language.Marlowe.Plutus (hashScript)
-import Language.Marlowe.Plutus.Semantics (marloweValidatorHash)
-import Language.Marlowe.Scripts.Types (MarloweInput, MarloweTxInput (..))
+import Language.Marlowe.Plutus.Script (marloweValidatorHash)
+import Language.Marlowe.Plutus.Script.Types (MarloweInput, MarloweTxInput (..))
 import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V1.Value (valueOf)
 import PlutusLedgerApi.V2 (
@@ -45,7 +45,7 @@ import PlutusLedgerApi.V2.Tx (TxOut (TxOut, txOutAddress, txOutValue))
 import PlutusTx (CompiledCode)
 import PlutusTx.Plugin ()
 
-import Language.Marlowe.Core.V1.Semantics.Types as Semantics (
+import Language.Marlowe.Plutus.Semantics.Types as Semantics (
   ChoiceId (ChoiceId),
   InputContent (IChoice, IDeposit),
   Party (Role),

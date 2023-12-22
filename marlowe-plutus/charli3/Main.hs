@@ -11,8 +11,8 @@ import Cardano.Binary (serialize')
 
 import qualified Data.ByteString as BS (writeFile)
 import qualified Data.ByteString.Base16 as B16 (encode)
-import qualified Language.Marlowe.Core.V1.Semantics.Types as V1
 import qualified Language.Marlowe.Plutus.Charli3 as Charli3 (validatorBytes, validatorHash)
+import qualified Language.Marlowe.Plutus.Semantics.Types as V1
 import qualified Options.Applicative as O
 
 -- | The command-line arguments.
