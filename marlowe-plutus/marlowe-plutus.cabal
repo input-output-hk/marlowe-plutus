@@ -79,11 +79,6 @@ flag asdata-case
   default:     True
   manual:      True
 
-flag asdata-action
-  description: Use `PlutusTx.asData` for `Action`.
-  default:     True
-  manual:      True
-
 common lang
   default-language:   Haskell2010
   default-extensions:
@@ -155,9 +150,6 @@ library
 
   if flag(asdata-case)
     cpp-options: -DASDATA_CASE
-
-  if flag(asdata-action)
-    cpp-options: -DASDATA_ACTION
 
 executable marlowe-validators
   import:         lang

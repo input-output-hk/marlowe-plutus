@@ -81,7 +81,7 @@ import PlutusTx.Lift (makeLift)
 import PlutusTx.Prelude hiding (encodeUtf8, mapM, (<$>), (<*>), (<>))
 import qualified Prelude as Haskell
 
-#if defined(ASDATA_CASE) || defined(ASDATA_ACTION)
+#ifdef ASDATA_CASE
 import Data.Data (Data)
 import PlutusTx (FromData, ToData, UnsafeFromData, makeIsDataIndexed)
 import PlutusTx.AsData (asData)
@@ -225,33 +225,6 @@ data Bound = Bound Integer Integer
 
 makeIsDataIndexed ''Bound [('Bound, 0)]
 
-#ifdef ASDATA_ACTION
-
-asData
-  [d|
-    -- | Actions happen at particular points during execution.
-    --   Three kinds of action are possible:
-    --
-    --   * A @Deposit n p v@ makes a deposit of value @v@ into account @n@ belonging to party @p@.
-    --
-    --   * A choice is made for a particular id with a list of bounds on the values that are acceptable.
-    --     For example, @[(0, 0), (3, 5]@ offers the choice of one of 0, 3, 4 and 5.
-    --
-    --   * The contract is notified that a particular observation be made.
-    --     Typically this would be done by one of the parties,
-    --     or one of their wallets acting automatically.
-    --
-    --   Note that the @asData@ encompases an equivalent @makeIsDataIndexed ''Action [('Deposit, 0), ('Choice, 1), ('Notify, 2)]@.
-    data Action
-      = Deposit AccountId Party Token (Value Observation)
-      | Choice ChoiceId [Bound]
-      | Notify Observation
-      deriving stock (Generic, Data)
-      deriving newtype (ToData, FromData, UnsafeFromData, Haskell.Eq, Haskell.Ord, Haskell.Show)
-    |]
-
-#else
-
 -- | Actions happen at particular points during execution.
 --   Three kinds of action are possible:
 --
@@ -270,8 +243,6 @@ data Action
   deriving stock (Haskell.Show, Generic, Haskell.Eq, Haskell.Ord)
 
 makeIsDataIndexed ''Action [('Deposit, 0), ('Choice, 1), ('Notify, 2)]
-
-#endif
 
 -- | A payment can be made to one of the parties to the contract,
 --   or to one of the accounts of the contract,
