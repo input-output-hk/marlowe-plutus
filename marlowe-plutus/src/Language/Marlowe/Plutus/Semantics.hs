@@ -1,12 +1,3 @@
------------------------------------------------------------------------------
---
--- Module      :  $Headers
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
---
------------------------------------------------------------------------------
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -26,7 +17,6 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
--- A big hammer, but it helps.
 {-# OPTIONS_GHC -fno-specialise #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 

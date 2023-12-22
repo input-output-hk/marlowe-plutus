@@ -1,13 +1,5 @@
 {- FOURMOLU_DISABLE -}
------------------------------------------------------------------------------
---
--- Module      :  $Headers
--- License     :  Apache 2.0
---
--- Stability   :  Experimental
--- Portability :  Portable
---
------------------------------------------------------------------------------
+
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
@@ -29,9 +21,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
--- A big hammer, but it helps.
 {-# OPTIONS_GHC -fno-specialise #-}
 {-# OPTIONS_GHC -fno-strictness #-}
 
