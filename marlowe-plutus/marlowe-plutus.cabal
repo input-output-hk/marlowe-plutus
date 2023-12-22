@@ -76,7 +76,7 @@ flag check-duplicate-bindings
 
 flag asdata-case
   description: Use `PlutusTx.asData` for `Case`.
-  default:     False
+  default:     True
   manual:      True
 
 flag asdata-action
