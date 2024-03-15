@@ -83,7 +83,7 @@ data SubScriptContext = SubScriptContext
   deriving (Generic, Haskell.Eq, Haskell.Show)
 
 data SubTxInfo = SubTxInfo
-  { subTxInfoInputs :: [BuiltinData] -- [TxInInfo]
+  { subTxInfoInputs :: [BuiltinData]
   , subTxInfoReferenceInputs :: BuiltinData
   , subTxInfoOutputs :: [BuiltinData]
   , subTgInfoFee :: BuiltinData
@@ -121,7 +121,6 @@ type Datum = (OrigRoot, Root)
 --
 -- Non invariants:
 --  * We allow multiple withdrawals in the same transaction. Users should check if they receive the expected amount.
---  * We don't check if the input contains the tokens at all.
 --
 -- Error codes:
 --  "1" - Invalid own input.
