@@ -116,7 +116,7 @@ common lang
 
 library
   import:          lang
-  hs-source-dirs:  src
+  hs-source-dirs:  on-chain
   build-depends:
     , base ^>=4.16.4.0 && <5
     , bytestring >=0.11.4.0 && <0.12
