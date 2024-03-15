@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -17,6 +18,10 @@ module Plutus.WithdrawalTree (
   withdraw,
 ) where
 
+import PlutusTx.Builtins.Class (stringToBuiltinByteString)
+import PlutusTx.Prelude
+import Prelude (Show (show))
+
 type Hash = BuiltinByteString
 
 type Proof = [Either Hash Hash]
@@ -25,9 +30,13 @@ type Address = BuiltinByteString
 
 type Account = (Address, Integer)
 
-hash :: Account -> Hash
-hash (addr, amount) = sha2_256 $ addr `appendByteString` "#" `appendByteString` amount
+hash :: BuiltinByteString -> Hash
+hash = sha2_256
 {-# INLINEABLE hash #-}
+
+hashAccount :: Account -> Hash
+hashAccount (addr, amount) = hash $ addr `appendByteString` "#" `appendByteString` (stringToBuiltinByteString $ show amount)
+{-# INLINEABLE hashAccount #-}
 
 combineHash :: Hash -> Hash -> Hash
 combineHash h h' = hash (appendByteString h h')
@@ -36,7 +45,7 @@ combineHash h h' = hash (appendByteString h h')
 newtype Root = Root Hash
 
 withdraw :: Account -> Root -> Proof -> Maybe Root
-withdraw account@(addr, _) (Root root) = go (hash account) (hash account')
+withdraw account@(addr, _) (Root root) = go (hashAccount account) (hashAccount account')
   where
     account' = (addr, 0)
     go oldSubRoot newSubRoot = \case
@@ -44,6 +53,6 @@ withdraw account@(addr, _) (Root root) = go (hash account) (hash account')
         if oldSubRoot == root
           then Just (Root newSubRoot)
           else Nothing
-      Left l : q -> go (combineHash l root') (combineHash l newSubRoot) q
-      Right r : q -> go (combineHash root' r) (combineHash newSubRoot r) q
-{-# INLINEABLE member #-}
+      Left l : q -> go (combineHash l oldSubRoot) (combineHash l newSubRoot) q
+      Right r : q -> go (combineHash oldSubRoot r) (combineHash newSubRoot r) q
+{-# INLINEABLE withdraw #-}
