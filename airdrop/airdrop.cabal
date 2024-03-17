@@ -1,12 +1,12 @@
 cabal-version: 3.4
-name:          withdrawal-tree
+name:          airdrop
 version:       0.0.1.0
 license:       Apache-2.0
 build-type:    Simple
 maintainer:    tomasz.rybarczyk@iohk.io
 stability:     experimental
 author:        Tomasz Rybarczyk
-synopsis:      Simple merkle tree based withdrawal scheme
+synopsis:      Cardano token airdrop prototype
 category:      Language
 license-files:
   LICENSE
@@ -114,9 +114,9 @@ common lang
   if flag(check-duplicate-bindings)
     cpp-options: -DCHECK_DUPLICATE_BINDINGS
 
-library
+library airdrop-plutus-validator
   import:          lang
-  hs-source-dirs:  on-chain
+  hs-source-dirs:  airdrop-plutus-validator
   build-depends:
     , base ^>=4.16.4.0 && <5
     , bytestring >=0.11.4.0 && <0.12
@@ -130,7 +130,62 @@ library
     , plutus-tx-plugin ==1.15.0.0
     , serialise ^>=0.2.6
 
-  exposed-modules: Plutus.WithdrawalTree
+  exposed-modules: Airdrop.Validator
 
   if flag(asdata-case)
     cpp-options: -DASDATA_CASE
+
+library token-allocation-tree
+  import:          lang
+  hs-source-dirs:  token-allocation-tree
+  build-depends:
+    , airdrop:airdrop-plutus-validator
+    , base ^>=4.16.4.0 && <5
+    , bytestring >=0.11.4.0 && <0.12
+    , cardano-crypto-class
+    , containers
+    , flat
+    , lens
+    , newtype-generics
+    , plutus-core ==1.15.0.0
+    , plutus-ledger-api ==1.15.0.0
+    , plutus-tx ==1.15.0.0
+    , plutus-tx-plugin ==1.15.0.0
+    , serialise ^>=0.2.6
+    , sqlite-simple ^>=0.4.18.0
+
+  exposed-modules: Airdrop.TokenAllocationTree
+
+  if flag(asdata-case)
+    cpp-options: -DASDATA_CASE
+
+test-suite airdrop-test
+  type:           exitcode-stdio-1.0
+  main-is:        Spec.hs
+  hs-source-dirs: test
+  other-modules:  Spec.Airdrop.TokenAllocationTree
+  build-depends:
+    , airdrop:token-allocation-tree
+    , base ^>=4.16.4.0 && <5
+    , bytestring >=0.11.4.0 && <0.12
+    , containers
+    , hspec
+    , sqlite-simple ^>=0.4.18.0
+
+executable airdrop
+  main-is:        Main.hs
+  hs-source-dirs: app
+  build-depends:
+    , airdrop:airdrop-plutus-validator
+    , base ^>=4.16.4.0 && <5
+    , bytestring >=0.11.4.0 && <0.12
+    , cardano-crypto-class
+    , flat
+    , lens
+    , newtype-generics
+    , plutus-core ==1.15.0.0
+    , plutus-ledger-api ==1.15.0.0
+    , plutus-tx ==1.15.0.0
+    , plutus-tx-plugin ==1.15.0.0
+    , serialise ^>=0.2.6
+    , sqlite-simple ^>=0.4.18.0

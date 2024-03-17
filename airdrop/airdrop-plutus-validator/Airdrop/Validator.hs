@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
@@ -12,32 +13,43 @@
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
 
 -- | Marlowe semantics validator.
-module Plutus.WithdrawalTree (
+module Airdrop.Validator (
   Hash,
   Root,
   Proof,
   withdraw,
+  compileValidator,
   validator,
+  combineHash,
+  hashAccount,
 ) where
 
+import qualified Cardano.Crypto.Hash as Hash
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Short as SBS
 import GHC.Generics (Generic)
+import PlutusCore.Core (plcVersion100)
 import PlutusLedgerApi.V1 (ToData)
 import PlutusLedgerApi.V1.Scripts (DatumHash)
 import PlutusLedgerApi.V2 (
   CurrencySymbol,
+  FromData,
   OutputDatum (OutputDatumHash),
   PubKeyHash (..),
+  ScriptHash (..),
+  SerialisedScript,
   TxInInfo (TxInInfo, txInInfoResolved),
   TxOut (TxOut, txOutAddress, txOutDatum, txOutValue),
   UnsafeFromData (unsafeFromBuiltinData),
   Value (Value, getValue),
+  serialiseCompiledCode,
   toBuiltinData,
  )
 import PlutusLedgerApi.V2.Contexts (ScriptPurpose (..), txInInfoOutRef)
+import qualified PlutusTx
 import qualified PlutusTx.AssocMap as AssocMap
-import PlutusTx.Builtins.Class (stringToBuiltinByteString)
+import PlutusTx.Builtins (mkI, serialiseData)
 import PlutusTx.Prelude
-import Prelude (Show (show))
 import qualified Prelude as Haskell
 
 type Hash = BuiltinByteString
@@ -51,7 +63,11 @@ hash = sha2_256
 {-# INLINEABLE hash #-}
 
 hashAccount :: Account -> Hash
-hashAccount (PubKeyHash addr, amount) = hash $ addr `appendByteString` "#" `appendByteString` (stringToBuiltinByteString $ show amount)
+hashAccount (PubKeyHash addr, amount) = do
+  let -- The most efficient way to serialize the integer:
+      -- https://github.com/IntersectMBO/plutus/issues/3657#issuecomment-1440944698
+      amountByteString = serialiseData . mkI $ amount
+  hash $ addr `appendByteString` "#" `appendByteString` amountByteString
 {-# INLINEABLE hashAccount #-}
 
 combineHash :: Hash -> Hash -> Hash
@@ -59,7 +75,7 @@ combineHash h h' = hash (appendByteString h h')
 {-# INLINEABLE combineHash #-}
 
 newtype Root = Root Hash
-  deriving newtype (ToData)
+  deriving newtype (ToData, UnsafeFromData, FromData)
 
 type Withdrawal = (Account, Proof)
 
@@ -110,7 +126,7 @@ type Redeemer = (Thread, [Withdrawal])
 
 -- We carry over the original root hash.
 newtype OrigRoot = OrigRoot Hash
-  deriving newtype (ToData)
+  deriving newtype (ToData, FromData, UnsafeFromData)
 
 type Datum = (OrigRoot, Root)
 
@@ -150,7 +166,7 @@ validator currencySymbol (origRoot, currRoot) ((txInIx, txOutIx), withdrawals) s
         Spending txOutRef -> txOutRef
         _ -> traceError "1"
 
-      -- \* Check and grab the input.
+      -- Check and grab the input.
 
       ownInput = do
         let -- We use the suggested ix to grab possibly own input.
@@ -173,7 +189,7 @@ validator currencySymbol (origRoot, currRoot) ((txInIx, txOutIx), withdrawals) s
                 (_, False) -> traceError "3" -- Missing account signature.
         foldl step (currRoot, 0) withdrawals
 
-      -- \* Derive the expected outputs from the input and the results.
+      -- Derive the expected outputs from the input and the results.
 
       TxInInfo{txInInfoResolved = TxOut{txOutAddress = expectedOwnAddress, txOutValue = inputValue}} = ownInput
 
@@ -202,7 +218,7 @@ validator currencySymbol (origRoot, currRoot) ((txInIx, txOutIx), withdrawals) s
                     else orig
             Value $ AssocMap.fromList $ map replaceValue valuesList
 
-  -- \* Check the outputs.
+  -- Check the outputs.
 
   case unsafeFromBuiltinData (subTxInfoOutputs !! txOutIx) of
     TxOut{txOutAddress = outputAddress, txOutValue = outputValue, txOutDatum = OutputDatumHash outputDatumHash} ->
@@ -210,3 +226,40 @@ validator currencySymbol (origRoot, currRoot) ((txInIx, txOutIx), withdrawals) s
         && traceIfFalse "6" (expectedOutputDatumHash == outputDatumHash) -- Invalid output datum
         && traceIfFalse "7" (expectedOwnAddress == outputAddress) -- Invalid output address
     _ -> traceError "6" -- Invalid output datum
+
+PlutusTx.makeLift ''SubTxInfo
+PlutusTx.makeIsDataIndexed ''SubTxInfo [('SubTxInfo, 0)]
+
+PlutusTx.makeLift ''SubScriptContext
+PlutusTx.makeIsDataIndexed ''SubScriptContext [('SubScriptContext, 0)]
+
+compileValidator :: CurrencySymbol -> PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
+compileValidator currencySymbol =
+  let validator' :: CurrencySymbol -> BuiltinData -> BuiltinData -> BuiltinData -> ()
+      validator' currencySymbol d r p =
+        check
+          $ validator
+            currencySymbol
+            (unsafeFromBuiltinData d)
+            (unsafeFromBuiltinData r)
+            (unsafeFromBuiltinData p)
+      errorOrApplied =
+        $$(PlutusTx.compile [||validator'||])
+          `PlutusTx.applyCode` PlutusTx.liftCode plcVersion100 currencySymbol
+   in case errorOrApplied of
+        Haskell.Left err -> Haskell.error $ "Application of role-payout validator hash to marlowe validator failed." <> err
+        Haskell.Right applied -> applied
+
+validatorBytes :: CurrencySymbol -> SerialisedScript
+validatorBytes currencySymbol = serialiseCompiledCode (compileValidator currencySymbol)
+
+hashScript :: PlutusTx.CompiledCode fn -> ScriptHash
+hashScript =
+  ScriptHash
+    . toBuiltin
+    . (Hash.hashToBytes :: Hash.Hash Hash.Blake2b_224 SBS.ShortByteString -> BS.ByteString)
+    . Hash.hashWith (BS.append "\x02" . SBS.fromShort) -- For Plutus V2.
+    . serialiseCompiledCode
+
+validatorHash :: CurrencySymbol -> ScriptHash
+validatorHash currencySymbol = hashScript (compileValidator currencySymbol)

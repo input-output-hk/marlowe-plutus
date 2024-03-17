@@ -21,7 +21,7 @@ index-state:
 
 packages:
   marlowe-plutus
-  withdrawal-tree
+  airdrop
 
 tests: True
 
@@ -33,7 +33,7 @@ package marlowe-plutus
   tests: True
   ghc-options: -Werror
 
-package withdrawal-tree
+package airdrop
   ghc-options: -Werror
 
 --Plutus 1.15.0 fork of https://github.com/Charli3-Official/oracle-datum-lib
