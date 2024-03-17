@@ -7,7 +7,6 @@ maintainer:    tomasz.rybarczyk@iohk.io
 stability:     experimental
 author:        Tomasz Rybarczyk
 synopsis:      Cardano token airdrop prototype
-category:      Language
 license-files:
   LICENSE
   NOTICE
@@ -23,54 +22,9 @@ flag defer-plugin-errors
   default:     False
   manual:      True
 
-flag trace-plutus
-  description: Enable Plutus trace log for Marlowe validators.
-  default:     False
-  manual:      True
-
 flag profile-plutus
-  description: Enable Plutus profiling for Marlowe validators.
+  description: Enable Plutus profiling for the validator.
   default:     False
-  manual:      True
-
-flag check-preconditions
-  description:
-    Validator checks whether preconditions are satisfied for the Marlowe state.
-
-  default:     True
-  manual:      True
-
-flag check-positive-balances
-  description:
-    Validator checks whether any account balances are non-positive in the Marlowe state.
-
-  default:     True
-  manual:      True
-
-flag check-duplicate-accounts
-  description:
-    Validator checks whether any accounts are duplicated in the Marlowe state.
-
-  default:     True
-  manual:      True
-
-flag check-duplicate-choices
-  description:
-    Validator checks whether any choices are duplicated in the Marlowe state.
-
-  default:     True
-  manual:      True
-
-flag check-duplicate-bindings
-  description:
-    Validator checks whether any bound values are duplicated in the Marlowe state.
-
-  default:     True
-  manual:      True
-
-flag asdata-case
-  description: Use `PlutusTx.asData` for `Case`.
-  default:     True
   manual:      True
 
 common lang
@@ -90,29 +44,11 @@ common lang
     -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wredundant-constraints -Widentities -Werror
 
-  if (flag(profile-plutus) || flag(trace-plutus))
+  if flag(profile-plutus)
     ghc-options: -fplugin-opt PlutusTx.Plugin:conservative-optimisation
 
   if flag(profile-plutus)
     ghc-options: -fplugin-opt PlutusTx.Plugin:profile-all
-
-  if flag(trace-plutus)
-    cpp-options: -DTRACE_PLUTUS
-
-  if flag(check-preconditions)
-    cpp-options: -DCHECK_PRECONDITIONS
-
-  if flag(check-positive-balances)
-    cpp-options: -DCHECK_POSITIVE_BALANCES
-
-  if flag(check-duplicate-accounts)
-    cpp-options: -DCHECK_DUPLICATE_ACCOUNTS
-
-  if flag(check-duplicate-choices)
-    cpp-options: -DCHECK_DUPLICATE_CHOICES
-
-  if flag(check-duplicate-bindings)
-    cpp-options: -DCHECK_DUPLICATE_BINDINGS
 
 library airdrop-plutus-validator
   import:          lang
@@ -132,9 +68,6 @@ library airdrop-plutus-validator
 
   exposed-modules: Airdrop.Validator
 
-  if flag(asdata-case)
-    cpp-options: -DASDATA_CASE
-
 library token-allocation-tree
   import:          lang
   hs-source-dirs:  token-allocation-tree
@@ -144,33 +77,45 @@ library token-allocation-tree
     , bytestring >=0.11.4.0 && <0.12
     , cardano-crypto-class
     , containers
+    , errors
     , flat
     , lens
+    , mtl
     , newtype-generics
-    , plutus-core ==1.15.0.0
     , plutus-ledger-api ==1.15.0.0
     , plutus-tx ==1.15.0.0
-    , plutus-tx-plugin ==1.15.0.0
     , serialise ^>=0.2.6
     , sqlite-simple ^>=0.4.18.0
 
   exposed-modules: Airdrop.TokenAllocationTree
 
-  if flag(asdata-case)
-    cpp-options: -DASDATA_CASE
-
 test-suite airdrop-test
   type:           exitcode-stdio-1.0
   main-is:        Spec.hs
   hs-source-dirs: test
-  other-modules:  Spec.Airdrop.TokenAllocationTree
+  other-modules:
+    Spec.Airdrop.TokenAllocationTree
+    Spec.Airdrop.Validator
+    Spec.Airdrop.Validator.CostModel
+
   build-depends:
-    , airdrop:token-allocation-tree
+    , airdrop:{airdrop-plutus-validator, token-allocation-tree}
     , base ^>=4.16.4.0 && <5
     , bytestring >=0.11.4.0 && <0.12
     , containers
     , hspec
+    , hspec-discover
+    , hspec-expectations
+    , mtl
+    , plutus-core ==1.15.0.0
+    , plutus-ledger-api ==1.15.0.0
+    , plutus-tx ==1.15.0.0
+    , plutus-tx-plugin ==1.15.0.0
+    , QuickCheck
+    , quickcheck-instances
     , sqlite-simple ^>=0.4.18.0
+    , text
+    , transformers
 
 executable airdrop
   main-is:        Main.hs

@@ -15,13 +15,17 @@
 -- | Marlowe semantics validator.
 module Airdrop.Validator (
   Hash,
-  Root,
+  Root (..),
   Proof,
+  TokenAllocation,
+  Withdrawal,
   withdraw,
   compileValidator,
+  hash,
   validator,
   combineHash,
-  hashAccount,
+  hashTokenAllocation,
+  unusableTokenAllocation,
 ) where
 
 import qualified Cardano.Crypto.Hash as Hash
@@ -56,33 +60,42 @@ type Hash = BuiltinByteString
 
 type Proof = [Either Hash Hash]
 
-type Account = (PubKeyHash, Integer)
+type TokenAllocation = (PubKeyHash, Integer)
+
+invalidPubKeyHash :: PubKeyHash
+invalidPubKeyHash = PubKeyHash ""
+
+unusableTokenAllocation :: TokenAllocation
+unusableTokenAllocation = (invalidPubKeyHash, -1)
+
+unusableTokenAllocationHash :: Hash
+unusableTokenAllocationHash = hashTokenAllocation unusableTokenAllocation
 
 hash :: BuiltinByteString -> Hash
 hash = sha2_256
 {-# INLINEABLE hash #-}
 
-hashAccount :: Account -> Hash
-hashAccount (PubKeyHash addr, amount) = do
+hashTokenAllocation :: TokenAllocation -> Hash
+hashTokenAllocation (PubKeyHash addr, amount) = do
   let -- The most efficient way to serialize the integer:
       -- https://github.com/IntersectMBO/plutus/issues/3657#issuecomment-1440944698
       amountByteString = serialiseData . mkI $ amount
   hash $ addr `appendByteString` "#" `appendByteString` amountByteString
-{-# INLINEABLE hashAccount #-}
+{-# INLINEABLE hashTokenAllocation #-}
 
 combineHash :: Hash -> Hash -> Hash
 combineHash h h' = hash (appendByteString h h')
 {-# INLINEABLE combineHash #-}
 
 newtype Root = Root Hash
-  deriving newtype (ToData, UnsafeFromData, FromData)
+  deriving newtype (Eq, ToData, UnsafeFromData, FromData)
 
-type Withdrawal = (Account, Proof)
+type Withdrawal = (TokenAllocation, Proof)
 
 withdraw :: Withdrawal -> Root -> Maybe Root
-withdraw (account@(addr, _), proof) (Root root) = go (hashAccount account) (hashAccount account') proof
+withdraw (tokenAllocation, proof) (Root root) = go (hashTokenAllocation tokenAllocation) unusableTokenAllocationHash proof
   where
-    account' = (addr, 0)
+    go :: Hash -> Hash -> Proof -> Maybe Root
     go oldSubRoot newSubRoot = \case
       [] ->
         if oldSubRoot == root
