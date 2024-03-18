@@ -156,7 +156,7 @@ arbitraryWithdrawalArgs (ProofLength proofLength) = do
   siblingsBottomUp <- replicateM proofLength do
     h <- unArbitraryHash <$> arbitrary
     arbitrary >>= \case
-      True -> pure $ P.Left h
+      True -> pure $ Left h
       False -> pure $ P.Right h
   let deriveRoot root [] = root
       deriveRoot subRoot (sibling : siblings) = do
@@ -172,7 +172,12 @@ spec :: Spec
 spec = do
   describe "Airdrop.Validator" do
     it "using minimal script context evaluates withdraw correctly" do
-      (withdrawal, root) <- generate (arbitraryWithdrawalArgs (ProofLength 20))
+      (withdrawal, root) <- generate (arbitraryWithdrawalArgs (ProofLength 2))
+      print withdrawal
+      print root
+
+      print "RESULT:"
+      print $ Validator.withdraw withdrawal root
       case evaluatePlutusScript withdrawScript [toData withdrawal, toData root] of
         This message -> print message
         That logOutput -> print logOutput

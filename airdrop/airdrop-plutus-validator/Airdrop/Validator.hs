@@ -88,7 +88,7 @@ combineHash h h' = hash (appendByteString h h')
 {-# INLINEABLE combineHash #-}
 
 newtype Root = Root Hash
-  deriving newtype (Eq, ToData, UnsafeFromData, FromData)
+  deriving newtype (Eq, ToData, UnsafeFromData, FromData, Haskell.Show)
 
 type Withdrawal = (TokenAllocation, Proof)
 
